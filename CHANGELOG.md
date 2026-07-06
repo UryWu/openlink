@@ -27,6 +27,28 @@
 - **扩展 ⚙️ 弹窗保存后不再自动触发 init**：之前保存 URL/Token 会自动
   `sendInitPrompt()`，现在只在用户手动点 🔗 时才初始化。
 - **扩展浮动按钮样式统一**：⚙️ 按钮改为和 🔗 初始化同样的蓝胶囊 + 阴影。
+- **扩展 ⚙️ 弹窗底部新增 [初始化] 按钮**：点 [初始化] = 先调 `saveSettings()`
+  共享函数保存设置，校验通过后 `close()` + `sendInitPrompt()`，一次完成
+  "配置 + 初始化"。校验失败保留弹窗让用户修正。
+- **扩展移除浮动 🔗 初始化按钮**：功能已整合进 ⚙️ 弹窗的 [初始化] 按钮，
+  浮动区只剩 ⚙️ 一个入口，简化界面。
+- **文档 `docs/sites/deepseek-adapt.md`**：DeepSeek 适配全流程文档，含
+  XHR/SSE/正则修复、关键死循环 bug 复盘、调试开关约定、给后续适配者的 checklist。
+- **文档 `docs/version-bumping.md`**：版本升级流程独立文档，从
+  `scripts/README.md` 抽出，含 SemVer 判断、lockfile 重新生成原理、典型发布流程。
+- **框架 `skills/skill-creator/`**：技能创建框架（模板 + 验证脚本 + 打包工具）。
+
+### Fixed
+- **扩展 ⚙️ 弹窗新增"自动提交"勾选框**：取消勾选后，工具执行结果只填进 AI
+  输入框、不自动点发送，需用户手动回车提交。绑定已有的 `chrome.storage.local.autoSend` 字段。
+- **扩展 ⚙️ 弹窗新增自动提交延迟区间** `x` / `y` 输入：每次触发时随机选
+  `[x, y]` 秒后自动提交（之前仅以默认值硬编码）。可选范围 0–60 秒。
+- **扩展 autoExecute 关闭时的审批卡片**（`showToolApprovalPopup`）：inline 卡片，
+  插到对应 AI 消息的工具栏下方（非全屏遮罩，不影响别处点击），展示工具名 +
+  参数 JSON，按钮 "执行" / "忽略"。
+- **扩展 ⚙️ 弹窗保存后不再自动触发 init**：之前保存 URL/Token 会自动
+  `sendInitPrompt()`，现在只在用户手动点 🔗 时才初始化。
+- **扩展浮动按钮样式统一**：⚙️ 按钮改为和 🔗 初始化同样的蓝胶囊 + 阴影。
 - **文档 `docs/sites/deepseek-adapt.md`**：DeepSeek 适配全流程文档，含
   XHR/SSE/正则修复、关键死循环 bug 复盘、调试开关约定、给后续适配者的 checklist。
 - **文档 `docs/version-bumping.md`**：版本升级流程独立文档，从
@@ -62,6 +84,12 @@
   ⚙️ 弹窗的 checkbox 写。
 - **`scripts/bump_version.sh` 同步锁文件命令**：`uv sync` → `uv lock`，让 uv
   在改完 pyproject.toml 后重新生成 lockfile 而非按旧 lockfile 安装。
+- **扩展 ⚙️ 弹窗按钮布局**：`[取消]` 移到布局最左边（容器改
+  `justify-content: space-between`），`[保存] [初始化]` 包成右侧子组。
+- **提取 `saveSettings()` 共享函数**：从原 [保存] handler 抽出共享给 [初始化]，
+  返回 `Promise<boolean>`。`chrome.storage.local.set` 由 callback 改成
+  `await Promise` 以配合 async 流程。
+- **扩展 [初始化] 按钮去掉 🔗 emoji**：文字简化为 `初始化`。
 
 ### Removed
 - **200ms 抖动逻辑**：用户反馈"无意义"，从延迟公式里移除，回归 `random(x, y)`。
