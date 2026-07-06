@@ -21,6 +21,14 @@
 #   frontend  ← frontend/package.json         (npm source of truth)
 #   extension ← extension/public/manifest.json (Chrome canonical — package.json follows)
 #
+# Note: lockfiles (uv.lock / package-lock.json) are intentionally NOT in the
+# patch list. A blind sed would corrupt transitive dep versions whose own version
+# happens to match ours (e.g. bump 1.1.1 → 1.2.0 would turn pathspec 1.1.1 into a
+# nonexistent 1.2.0). Instead, we let the package manager regenerate the lock
+# from the updated source-of-truth: `uv lock` reads pyproject.toml, `npm install`
+# reads package.json — both only bump the openlink entry and leave transitive
+# versions untouched.
+#
 # Note: commit / tag / push are intentionally NOT in this script — they need
 # contextual messages and are kept under manual control.
 
@@ -90,7 +98,7 @@ read_version_extension() {
   grep -E '"version":' extension/public/manifest.json | head -1 | sed -E 's/.*"version": *"([^"]+)".*/\1/'
 }
 
-sync_lock_backend()   { (cd backend   && uv sync            >/dev/null 2>&1); }
+sync_lock_backend()   { (cd backend   && uv lock            >/dev/null 2>&1); }
 sync_lock_frontend()  { (cd frontend  && npm install --silent --no-audit --no-fund >/dev/null 2>&1); }
 sync_lock_extension() { (cd extension && npm install --silent --no-audit --no-fund >/dev/null 2>&1); }
 
@@ -99,13 +107,10 @@ declare -A COMPONENT_FILES=(
 backend/VERSION|plain
 backend/app/main.py|plain
 backend/app/schemas/types.py|plain
-backend/app/api/endpoints/health.py|plain
-backend/uv.lock|plain"
-  [frontend]="frontend/package.json|json
-frontend/package-lock.json|json"
+backend/app/api/endpoints/health.py|plain"
+  [frontend]="frontend/package.json|json"
   [extension]="extension/public/manifest.json|json
-extension/package.json|json
-extension/package-lock.json|json"
+extension/package.json|json"
 )
 declare -A COMPONENT_READ=(
   [backend]=read_version_backend
@@ -263,9 +268,12 @@ for comp in backend frontend extension; do
     "$ROOT_DIR" 2>/dev/null \
     | awk -F: '{print $1}' \
     | sort -u || true)
-  # Now check which of those still contain the OLD version (genuine stale refs)
+  # Now check which of those still contain the OLD version (genuine stale refs).
+  # Lockfiles are excluded — they legitimately retain old transitive dep versions
+  # (e.g. pathspec 1.1.1 is correct even when openlink jumps to 1.2.0).
   for f in $hits; do
     [[ -f "$f" ]] || continue
+    [[ "$f" =~ (uv|package-lock)\.lock$ ]] && continue
     if grep -q "$current" "$f" 2>/dev/null; then
       STALE+="$f (still has $current)"$'\n'
     fi

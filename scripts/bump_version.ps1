@@ -45,16 +45,14 @@ $Components = @{
             @{ Path = "backend\VERSION";                    Mode = 'plain' },
             @{ Path = "backend\app\main.py";                Mode = 'plain' },
             @{ Path = "backend\app\schemas\types.py";       Mode = 'plain' },
-            @{ Path = "backend\app\api\endpoints\health.py"; Mode = 'plain' },
-            @{ Path = "backend\uv.lock";                    Mode = 'plain' }
+            @{ Path = "backend\app\api\endpoints\health.py"; Mode = 'plain' }
         )
-        Sync   = { Push-Location "$RootDir\backend"; uv sync | Out-Null; Pop-Location }
+        Sync   = { Push-Location "$RootDir\backend"; uv lock | Out-Null; Pop-Location }
     }
     frontend  = @{
         Reader = { Select-String -Path "$RootDir\frontend\package.json" -Pattern '"version"\s*:\s*"(\d+\.\d+\.\d+)"' }
         Files  = @(
-            @{ Path = "frontend\package.json";       Mode = 'json' },
-            @{ Path = "frontend\package-lock.json";  Mode = 'json' }
+            @{ Path = "frontend\package.json";       Mode = 'json' }
         )
         Sync   = { Push-Location "$RootDir\frontend"; npm install --silent --no-audit --no-fund | Out-Null; Pop-Location }
     }
@@ -62,8 +60,7 @@ $Components = @{
         Reader = { Select-String -Path "$RootDir\extension\public\manifest.json" -Pattern '"version"\s*:\s*"(\d+\.\d+\.\d+)"' }
         Files  = @(
             @{ Path = "extension\public\manifest.json"; Mode = 'json' },
-            @{ Path = "extension\package.json";         Mode = 'json' },
-            @{ Path = "extension\package-lock.json";    Mode = 'json' }
+            @{ Path = "extension\package.json";         Mode = 'json' }
         )
         Sync   = { Push-Location "$RootDir\extension"; npm install --silent --no-audit --no-fund | Out-Null; Pop-Location }
     }
