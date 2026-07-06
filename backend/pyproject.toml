@@ -1,0 +1,43 @@
+[project]
+name = "openlink"
+version = "1.0.0"
+description = "Browser-local proxy for AI assistants to access local filesystem"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.139.0",
+    "httpx>=0.28.1",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.2",
+    "python-multipart>=0.0.32",
+    "uvicorn[standard]>=0.50.1",
+]
+
+[project.scripts]
+openlink = "app.main:run"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.1.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.15.20",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+ignore_missing_imports = true
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
