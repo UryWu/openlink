@@ -480,6 +480,20 @@ function showSettingsDialog() {
         <input id="openlink-token" type="password" placeholder="token"
           style="display:block;width:100%;margin-top:4px;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:13px;box-sizing:border-box">
       </label>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px;color:#9aa0a8;cursor:pointer;">
+        <input id="openlink-auto-execute" type="checkbox" style="margin:0;">
+        自动执行工具调用（无需手动点 "执行"）
+      </label>
+      <label style="display:block;margin-bottom:16px;font-size:13px;color:#9aa0a8;">
+        自动提交延迟区间 (秒)
+        <div style="display:flex;gap:8px;margin-top:4px;">
+          <input id="openlink-delay-min" type="number" step="0.1" min="0" placeholder="最小 (x)"
+            style="flex:1;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:13px;box-sizing:border-box">
+          <input id="openlink-delay-max" type="number" step="0.1" min="0" placeholder="最大 (y)"
+            style="flex:1;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:13px;box-sizing:border-box">
+        </div>
+        <div style="margin-top:4px;font-size:11px;color:#6b7280;">每次触发时在 x 与 y 之间随机取一个秒数</div>
+      </label>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
         <button id="openlink-cancel" style="padding:8px 16px;background:transparent;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;cursor:pointer;">取消</button>
         <button id="openlink-save" style="padding:8px 16px;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;">保存</button>
@@ -489,9 +503,12 @@ function showSettingsDialog() {
   document.body.appendChild(overlay);
 
   // Pre-fill from existing storage
-  chrome.storage.local.get(['authToken', 'apiUrl']).then((cfg: any) => {
+  chrome.storage.local.get(['authToken', 'apiUrl', 'autoExecute', 'delayMin', 'delayMax']).then((cfg: any) => {
     (document.getElementById('openlink-url') as HTMLInputElement).value = cfg.apiUrl || '';
     (document.getElementById('openlink-token') as HTMLInputElement).value = cfg.authToken || '';
+    (document.getElementById('openlink-auto-execute') as HTMLInputElement).checked = !!cfg.autoExecute;
+    (document.getElementById('openlink-delay-min') as HTMLInputElement).value = cfg.delayMin != null ? String(cfg.delayMin) : '1';
+    (document.getElementById('openlink-delay-max') as HTMLInputElement).value = cfg.delayMax != null ? String(cfg.delayMax) : '4';
   });
 
   const close = () => overlay.remove();
@@ -501,39 +518,66 @@ function showSettingsDialog() {
     const token = (document.getElementById('openlink-token') as HTMLInputElement).value.trim();
     // Strip trailing slash to avoid double-slash in requests
     while (url.endsWith('/')) url = url.slice(0, -1);
-    if (!url) { alert('请填写 API 地址'); return; }
-    if (!token) {
+    const urlChanged = url.length > 0;
+    const tokenChanged = token.length > 0;
+    if (urlChanged && !tokenChanged) {
       alert('请填写 Token\n\nToken 来自：\n  C:\\Users\\UryWu\\.openlink\\settings.json\n\n打开那个文件，复制 "token" 字段的值');
       return;
     }
 
-    // Verify token against server before saving
+    // ── New-settings validation (independent of /auth probe) ──
+    const autoExec = (document.getElementById('openlink-auto-execute') as HTMLInputElement).checked;
+    const minRaw = (document.getElementById('openlink-delay-min') as HTMLInputElement).value.trim();
+    const maxRaw = (document.getElementById('openlink-delay-max') as HTMLInputElement).value.trim();
+    const minN = Number(minRaw);
+    const maxN = Number(maxRaw);
+    if (minRaw === '' || maxRaw === '' || Number.isNaN(minN) || Number.isNaN(maxN)) {
+      alert('延迟区间不合法：请填写数字'); return;
+    }
+    if (minN < 0) { alert('最小延迟不能小于 0'); return; }
+    if (maxN > 60) { alert('最大延迟不能超过 60 秒（避免 UI 被长时间阻塞）'); return; }
+    if (maxN < minN) { alert('最大延迟必须 ≥ 最小延迟'); return; }
+
     const saveBtn = document.getElementById('openlink-save') as HTMLButtonElement;
-    saveBtn.disabled = true;
-    saveBtn.textContent = '验证中...';
-    try {
-      const probe = await bgFetch(`${url}/auth`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!probe.ok || !probe.body?.includes('"valid":true')) {
-        alert(`Token 验证失败\n\n后端响应: ${probe.body?.slice(0, 200) || `状态 ${probe.status}`}\n\n请检查：\n1. 后端是否在运行\n2. Token 是不是当前 settings.json 里的值\n3. API 地址末尾不要带 /`);
+
+    // ── Token verification (only when URL or Token actually changed) ──
+    if (urlChanged || tokenChanged) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = '验证中...';
+      try {
+        const probe = await bgFetch(`${url}/auth`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!probe.ok || !probe.body?.includes('"valid":true')) {
+          alert(`Token 验证失败\n\n后端响应: ${probe.body?.slice(0, 200) || `状态 ${probe.status}`}\n\n请检查：\n1. 后端是否在运行\n2. Token 是不是当前 settings.json 里的值\n3. API 地址末尾不要带 /`);
+          saveBtn.disabled = false;
+          saveBtn.textContent = '保存';
+          return;
+        }
+      } catch (e: any) {
+        alert('连接后端失败：' + (e?.message || e));
         saveBtn.disabled = false;
         saveBtn.textContent = '保存';
         return;
       }
-    } catch (e: any) {
-      alert('连接后端失败：' + (e?.message || e));
-      saveBtn.disabled = false;
-      saveBtn.textContent = '保存';
-      return;
     }
 
-    chrome.storage.local.set({ apiUrl: url, authToken: token }, () => {
+    // ── Persist (only overwrite URL/Token if the user actually typed them) ──
+    const updates: Record<string, any> = {
+      autoExecute: autoExec,
+      delayMin: minN,
+      delayMax: maxN,
+    };
+    if (urlChanged) updates.apiUrl = url;
+    if (tokenChanged) updates.authToken = token;
+
+    chrome.storage.local.set(updates, () => {
       saveBtn.disabled = false;
       saveBtn.textContent = '保存';
       close();
-      sendInitPrompt();
+      // Only trigger init prompt when URL/Token actually changed.
+      if (urlChanged || tokenChanged) sendInitPrompt();
     });
   });
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
