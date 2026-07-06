@@ -528,10 +528,12 @@ function showSettingsDialog() {
         </div>
         <div style="margin-top:4px;font-size:11px;color:#6b7280;">每次触发时在 x 与 y 之间随机取一个秒数</div>
       </label>
-      <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
+      <div style="display:flex;gap:8px;justify-content:space-between;align-items:center">
         <button id="openlink-cancel" style="padding:8px 16px;background:transparent;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;cursor:pointer;">取消</button>
-        <button id="openlink-save" style="padding:8px 16px;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;">保存</button>
-        <button id="openlink-init-from-dialog" title="向 AI 发送系统提示词（无需保存设置）" style="padding:8px 16px;background:#1e1e2e;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;cursor:pointer;font-size:13px;">🔗 初始化</button>
+        <div style="display:flex;gap:8px;">
+          <button id="openlink-save" style="padding:8px 16px;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;">保存</button>
+          <button id="openlink-init-from-dialog" title="先保存当前设置, 再向 AI 发送系统提示词" style="padding:8px 16px;background:#1e1e2e;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;cursor:pointer;font-size:13px;">初始化</button>
+        </div>
       </div>
     </div>
   `;
@@ -552,11 +554,21 @@ function showSettingsDialog() {
   // "🔗 初始化" from inside the settings dialog — same action as the
   // floating 🔗 button (send system prompt to AI). Closes the dialog first
   // so the user sees the prompt being filled/sent into the editor cleanly.
-  document.getElementById('openlink-init-from-dialog')!.addEventListener('click', () => {
+  document.getElementById('openlink-init-from-dialog')!.addEventListener('click', async () => {
+    const ok = await saveSettings();
+    if (!ok) return;  // validation failed, dialog stays open
     close();
     sendInitPrompt();
   });
   document.getElementById('openlink-save')!.addEventListener('click', async () => {
+    const ok = await saveSettings();
+    if (!ok) return;
+    close();
+  });
+
+  // Shared save logic — returns true on success, false on validation failure.
+  // Used by both the [保存] and [初始化] buttons (后者先保存再触发 init).
+  async function saveSettings(): Promise<boolean> {
     let url = (document.getElementById('openlink-url') as HTMLInputElement).value.trim();
     const token = (document.getElementById('openlink-token') as HTMLInputElement).value.trim();
     // Strip trailing slash to avoid double-slash in requests
@@ -565,7 +577,7 @@ function showSettingsDialog() {
     const tokenChanged = token.length > 0;
     if (urlChanged && !tokenChanged) {
       alert('请填写 Token\n\nToken 来自：\n  C:\\Users\\UryWu\\.openlink\\settings.json\n\n打开那个文件，复制 "token" 字段的值');
-      return;
+      return false;
     }
 
     // ── New-settings validation (independent of /auth probe) ──
@@ -576,11 +588,11 @@ function showSettingsDialog() {
     const minN = Number(minRaw);
     const maxN = Number(maxRaw);
     if (minRaw === '' || maxRaw === '' || Number.isNaN(minN) || Number.isNaN(maxN)) {
-      alert('延迟区间不合法：请填写数字'); return;
+      alert('延迟区间不合法：请填写数字'); return false;
     }
-    if (minN < 0) { alert('最小延迟不能小于 0'); return; }
-    if (maxN > 60) { alert('最大延迟不能超过 60 秒（避免 UI 被长时间阻塞）'); return; }
-    if (maxN < minN) { alert('最大延迟必须 ≥ 最小延迟'); return; }
+    if (minN < 0) { alert('最小延迟不能小于 0'); return false; }
+    if (maxN > 60) { alert('最大延迟不能超过 60 秒（避免 UI 被长时间阻塞）'); return false; }
+    if (maxN < minN) { alert('最大延迟必须 ≥ 最小延迟'); return false; }
 
     const saveBtn = document.getElementById('openlink-save') as HTMLButtonElement;
 
@@ -597,13 +609,13 @@ function showSettingsDialog() {
           alert(`Token 验证失败\n\n后端响应: ${probe.body?.slice(0, 200) || `状态 ${probe.status}`}\n\n请检查：\n1. 后端是否在运行\n2. Token 是不是当前 settings.json 里的值\n3. API 地址末尾不要带 /`);
           saveBtn.disabled = false;
           saveBtn.textContent = '保存';
-          return;
+          return false;
         }
       } catch (e: any) {
         alert('连接后端失败：' + (e?.message || e));
         saveBtn.disabled = false;
         saveBtn.textContent = '保存';
-        return;
+        return false;
       }
     }
 
@@ -617,14 +629,13 @@ function showSettingsDialog() {
     if (urlChanged) updates.apiUrl = url;
     if (tokenChanged) updates.authToken = token;
 
-    chrome.storage.local.set(updates, () => {
-      saveBtn.disabled = false;
-      saveBtn.textContent = '保存';
-      close();
-      // Settings saved — do NOT auto-trigger initialization. The user clicks
-      // the 🔗 init button manually when ready.
+    await new Promise<void>((resolve) => {
+      chrome.storage.local.set(updates, () => resolve());
     });
-  });
+    saveBtn.disabled = false;
+    saveBtn.textContent = '保存';
+    return true;
+  }
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 }
 
