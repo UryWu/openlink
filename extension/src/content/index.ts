@@ -89,13 +89,25 @@ function getSiteConfig(): SiteConfig {
   if (h.includes('arena.ai'))
     return { editor: 'textarea[name="message"], textarea[placeholder="Ask followup…"]', sendBtn: 'button[type="submit"]', stopBtn: null, fillMethod: 'value', useObserver: true, responseSelector: '.prose' };
   if (h.includes('deepseek.com'))
-    // DeepSeek uses Slate.js + CSS Modules (hashed class names change between deploys),
-    // so each selector keeps a hashed class first, then aria-label fallbacks for robustness.
+    // DeepSeek chat (verified 2026-07): plain <textarea> + semantic BEM-style button classes
+    // (ds-button--primary/--filled/--circle). Earlier Slate.js + CSS-Modules selectors are stale.
+    //
+    // Detection path: useObserver=false → injected.js fetch interception extracts <tool> tags
+    // from streaming API responses. To switch to DOM observer in the future, the response
+    // container is `div.ds-message > div.ds-markdown.ds-assistant-message-main-content`
+    // (outer list-item wrappers like ._4f9bf79._43c05b5 are CSS-Modules hashes that change
+    // per deploy — stick to the semantic `.ds-assistant-message-main-content` selector).
     return {
-      editor: '[data-slate-editor="true"]',
-      sendBtn: '.operateBtn-JsB9e2:not(.disabled-ZaDDJC), button[aria-label*="发送"], button[aria-label*="Send"]',
-      stopBtn: '.stop-yGpvO2 img, button[aria-label*="停止"] img, button[aria-label*="Stop"] img',
-      fillMethod: 'paste',
+      editor: 'textarea[placeholder="Message DeepSeek"], textarea[name="search"], textarea',
+      // filled-circle primary button (distinct from upload which is capsule-small).
+      // Note: ds-button--disabled does not reliably toggle between empty/non-empty
+      // textarea states (DeepSeek controls clickability via JS state, not the class).
+      // Drop the :not filter — fillAndSend's 50×100ms polling + Enter-key fallback
+      // at line ~725 covers edge cases where click() fires on a genuinely inert button.
+      sendBtn: '.ds-button--primary.ds-button--filled.ds-button--circle',
+      // Same element swaps icon to a stop glyph during streaming.
+      stopBtn: '.ds-button--primary.ds-button--filled.ds-button--circle',
+      fillMethod: 'value',
       useObserver: false,
     };
   // Default: empty selectors — safe no-op for any unmatched host.
