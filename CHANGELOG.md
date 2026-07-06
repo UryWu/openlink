@@ -39,23 +39,6 @@
 - **框架 `skills/skill-creator/`**：技能创建框架（模板 + 验证脚本 + 打包工具）。
 
 ### Fixed
-- **扩展 ⚙️ 弹窗新增"自动提交"勾选框**：取消勾选后，工具执行结果只填进 AI
-  输入框、不自动点发送，需用户手动回车提交。绑定已有的 `chrome.storage.local.autoSend` 字段。
-- **扩展 ⚙️ 弹窗新增自动提交延迟区间** `x` / `y` 输入：每次触发时随机选
-  `[x, y]` 秒后自动提交（之前仅以默认值硬编码）。可选范围 0–60 秒。
-- **扩展 autoExecute 关闭时的审批卡片**（`showToolApprovalPopup`）：inline 卡片，
-  插到对应 AI 消息的工具栏下方（非全屏遮罩，不影响别处点击），展示工具名 +
-  参数 JSON，按钮 "执行" / "忽略"。
-- **扩展 ⚙️ 弹窗保存后不再自动触发 init**：之前保存 URL/Token 会自动
-  `sendInitPrompt()`，现在只在用户手动点 🔗 时才初始化。
-- **扩展浮动按钮样式统一**：⚙️ 按钮改为和 🔗 初始化同样的蓝胶囊 + 阴影。
-- **文档 `docs/sites/deepseek-adapt.md`**：DeepSeek 适配全流程文档，含
-  XHR/SSE/正则修复、关键死循环 bug 复盘、调试开关约定、给后续适配者的 checklist。
-- **文档 `docs/version-bumping.md`**：版本升级流程独立文档，从
-  `scripts/README.md` 抽出，含 SemVer 判断、lockfile 重新生成原理、典型发布流程。
-- **框架 `skills/skill-creator/`**：技能创建框架（模板 + 验证脚本 + 打包工具）。
-
-### Fixed
 - **关键 bug `extension/src/injected/index.ts`**：`RE_TOOL` 正则漏 `g` flag，
   导致 `while ((re.exec(text)) !== null)` 配合 dedup `processed.has()` 形成**死循环**——
   主线程被锁死、整个标签页卡死。补回 `g` flag 让 `exec` 推进 `lastIndex`。
