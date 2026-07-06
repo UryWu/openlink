@@ -448,9 +448,9 @@ function injectInitButton() {
   btn.onclick = sendInitPrompt;
 
   const settings = document.createElement('button');
-  settings.textContent = '⚙️';
+  settings.textContent = 'OpenLink设置';
   settings.title = 'OpenLink 设置';
-  settings.style.cssText = 'padding:8px 10px;background:#1e1e1e;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:50%;cursor:pointer;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.3)';
+  settings.style.cssText = 'padding:8px 14px;background:#1677ff;color:#fff;border:none;border-radius:20px;cursor:pointer;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.3)';
   settings.onclick = showSettingsDialog;
 
   wrap.appendChild(settings);
