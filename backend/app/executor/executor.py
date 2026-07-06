@@ -10,8 +10,7 @@ from app.schemas.types import ToolRequest, ToolResponse
 from app.tools.base import ToolContext
 from app.tools.registry import ToolRegistry
 
-# Prompt files
-_PROMPT_FILE = os.path.join(os.path.dirname(__file__), "..", "prompts", "init_prompt.txt")
+# Prompt files are looked up in _build_init_prompt() — see candidates list.
 
 _REMINDER = "\n\n[系统提示] 请记住你是 openlink，一个交互式 CLI 工具，主要用于软件工程任务。"
 
@@ -32,12 +31,21 @@ def _build_init_prompt(config: AppConfig) -> str:
     """Read and render the init prompt with system info and skills.
 
     Mirrors Go's handlePrompt logic.
+    Searches multiple candidate paths so the prompt can live either next
+    to the package (backend/prompts/) or at the repo root (prompts/).
     """
-    prompt_path = os.path.join(os.path.dirname(__file__), "..", "prompts", "init_prompt.txt")
-    if os.path.isfile(prompt_path):
-        with open(prompt_path, "r", encoding="utf-8") as f:
-            prompt = f.read()
-    else:
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(here, "..", "prompts", "init_prompt.txt"),       # backend/prompts/
+        os.path.join(here, "..", "..", "prompts", "init_prompt.txt"),  # repo-root prompts/
+    ]
+    prompt = None
+    for prompt_path in candidates:
+        if os.path.isfile(prompt_path):
+            with open(prompt_path, "r", encoding="utf-8") as f:
+                prompt = f.read()
+                break
+    if prompt is None:
         # Fallback hardcoded minimal prompt
         prompt = "You are openlink, an interactive CLI tool for software engineering tasks.\n\n{{SYSTEM_INFO}}"
 
