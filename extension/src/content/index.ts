@@ -9,14 +9,17 @@ function getNativeSetter() {
 }
 
 function parseXmlToolCall(raw: string): any | null {
-  const nameMatch = raw.match(/^<tool\s+name="([^"]+)"(?:\s+call_id="([^"]+)")?/);
+  // DeepSeek sometimes emits tool tags with JSON-escaped quotes (\") in the
+  // raw SSE body — normalize first so the regex sees plain ASCII quotes.
+  const s = raw.replace(/\\"/g, '"');
+  const nameMatch = s.match(/^<tool\s+name="([^"]+)"(?:\s+call_id="([^"]+)")?/);
   if (!nameMatch) return null;
   const name = nameMatch[1];
   const callId = nameMatch[2] || null;
   const args: Record<string, string> = {};
   const paramRe = /<parameter\s+name="([^"]+)">([\s\S]*?)<\/parameter>/g;
   let m;
-  while ((m = paramRe.exec(raw)) !== null) args[m[1]] = m[2];
+  while ((m = paramRe.exec(s)) !== null) args[m[1]] = m[2];
   return { name, args, callId };
 }
 

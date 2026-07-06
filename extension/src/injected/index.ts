@@ -1,12 +1,15 @@
 function parseXmlToolCall(raw: string): any | null {
-  const nameMatch = raw.match(/^<tool\s+name="([^"]+)"(?:\s+call_id="([^"]+)")?/);
+  // DeepSeek sometimes emits tool tags with JSON-escaped quotes (\") in the
+  // raw SSE body — normalize first so the regex sees plain ASCII quotes.
+  const s = raw.replace(/\\"/g, '"');
+  const nameMatch = s.match(/^<tool\s+name="([^"]+)"(?:\s+call_id="([^"]+)")?/);
   if (!nameMatch) return null;
   const name = nameMatch[1];
   const callId = nameMatch[2] || null;
   const args: Record<string, string> = {};
   const paramRe = /<parameter\s+name="([^"]+)">([\s\S]*?)<\/parameter>/g;
   let m;
-  while ((m = paramRe.exec(raw)) !== null) args[m[1]] = m[2];
+  while ((m = paramRe.exec(s)) !== null) args[m[1]] = m[2];
   return { name, args, callId };
 }
 
@@ -56,7 +59,7 @@ function tryParseToolJSON(raw: string): any | null {
   }
 
   // ── Core scanner: feed any text (chunk / event data) to look for <tool> tags ──
-  const RE_TOOL = /<tool(?:\s[^>]*)?>[\s\S]*?<\/tool(?:_call)?>/;
+  const RE_TOOL = /<tool(?:\s[^>]*)?>[\s\S]*?<\/tool(?:_call)?>/g;
 
   function scanText(text: string) {
     if (!text) return;
@@ -78,6 +81,49 @@ function tryParseToolJSON(raw: string): any | null {
       }
     }
     RE_TOOL.lastIndex = 0;
+  }
+
+  // DeepSeek streams response content as JSON-fragmented SSE chunks:
+  //   data: {"p":"response/fragments/-1/content","o":"APPEND","v":"<"}
+  //   data: {"v":"tool"}
+  //   data: {"v":" name"}
+  //   ...
+  // Each `v` string is a tiny text slice. Concatenate them so the tool tag
+  // regex sees `<tool name="...">...</tool>` as a single contiguous string.
+  // Returns null if the body doesn't look like DeepSeek SSE (no `data:` lines).
+  function reassembleSSEFragments(body: string): string | null {
+    if (!body.includes('data:')) return null;
+    const lines = body.split('\n');
+    const parts: string[] = [];
+    let foundAny = false;
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue;
+      const json = line.slice(5).trim();
+      if (!json || json[0] !== '{') continue;
+      try {
+        const obj = JSON.parse(json);
+        if (!obj) continue;
+        // Case 1: `v` is a string — most APPEND chunks (e.g. "tool", " name", "=\"")
+        if (typeof obj.v === 'string') {
+          parts.push(obj.v);
+          foundAny = true;
+          continue;
+        }
+        // Case 2: `v` is the initial state object — content lives in
+        //         response.fragments[].content. Without this, the very first
+        //         character of the response (often `<` when AI emits a tool
+        //         tag) is dropped, breaking tool detection.
+        if (obj.v && typeof obj.v === 'object' && obj.v.response && Array.isArray(obj.v.response.fragments)) {
+          for (const frag of obj.v.response.fragments) {
+            if (typeof frag.content === 'string') {
+              parts.push(frag.content);
+              foundAny = true;
+            }
+          }
+        }
+      } catch { /* not JSON, skip */ }
+    }
+    return foundAny ? parts.join('') : null;
   }
 
   // ── 1. fetch interception (streaming response body) ─────────────────────
@@ -161,9 +207,19 @@ function tryParseToolJSON(raw: string): any | null {
     XMLHttpRequest.prototype.send = function(...args: any[]) {
       this.addEventListener('readystatechange', function() {
         if (this.readyState === 4) {
-          console.log('[OpenLink] XHR ←', (this as any).__openlinkUrl,
-                      'status:', this.status, 'len:', (this.responseText || '').length);
-          try { scanText(this.responseText || ''); } catch (e) { /* ignore */ }
+          const url = (this as any).__openlinkUrl || '';
+          const rt = this.responseText || (typeof this.response === 'string' ? this.response : '');
+          console.log('[OpenLink] XHR ←', url, 'status:', this.status, 'len:', rt.length);
+          // DeepSeek streams tool calls via SSE-style JSON fragments
+          // (data: {"v":"<"}, data: {"v":"tool"}, ...) — concatenate `v` strings first.
+          try { scanText(rt); } catch (e) { /* ignore */ }
+          try {
+            const reassembled = reassembleSSEFragments(rt);
+            if (reassembled !== null) {
+              console.log('[OpenLink] reassembled SSE:', reassembled.length, 'chars');
+              scanText(reassembled);
+            }
+          } catch (e) { /* ignore */ }
         }
       });
       return origSend.apply(this, args);
