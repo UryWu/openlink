@@ -524,6 +524,10 @@ function showSettingsDialog() {
         <input id="openlink-auto-execute" type="checkbox" style="margin:0;">
         自动执行工具调用（无需手动点 "执行"）
       </label>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:13px;color:#9aa0a8;cursor:pointer;">
+        <input id="openlink-auto-send" type="checkbox" style="margin:0;">
+        自动提交（取消勾选则填入 AI 输入框后需手动点发送）
+      </label>
       <label style="display:block;margin-bottom:16px;font-size:13px;color:#9aa0a8;">
         自动提交延迟区间 (秒)
         <div style="display:flex;gap:8px;margin-top:4px;">
@@ -543,10 +547,11 @@ function showSettingsDialog() {
   document.body.appendChild(overlay);
 
   // Pre-fill from existing storage
-  chrome.storage.local.get(['authToken', 'apiUrl', 'autoExecute', 'delayMin', 'delayMax']).then((cfg: any) => {
+  chrome.storage.local.get(['authToken', 'apiUrl', 'autoExecute', 'autoSend', 'delayMin', 'delayMax']).then((cfg: any) => {
     (document.getElementById('openlink-url') as HTMLInputElement).value = cfg.apiUrl || '';
     (document.getElementById('openlink-token') as HTMLInputElement).value = cfg.authToken || '';
     (document.getElementById('openlink-auto-execute') as HTMLInputElement).checked = cfg.autoExecute !== false;
+    (document.getElementById('openlink-auto-send') as HTMLInputElement).checked = cfg.autoSend !== false;
     (document.getElementById('openlink-delay-min') as HTMLInputElement).value = cfg.delayMin != null ? String(cfg.delayMin) : '1';
     (document.getElementById('openlink-delay-max') as HTMLInputElement).value = cfg.delayMax != null ? String(cfg.delayMax) : '4';
   });
@@ -567,6 +572,7 @@ function showSettingsDialog() {
 
     // ── New-settings validation (independent of /auth probe) ──
     const autoExec = (document.getElementById('openlink-auto-execute') as HTMLInputElement).checked;
+    const autoSendCb = (document.getElementById('openlink-auto-send') as HTMLInputElement).checked;
     const minRaw = (document.getElementById('openlink-delay-min') as HTMLInputElement).value.trim();
     const maxRaw = (document.getElementById('openlink-delay-max') as HTMLInputElement).value.trim();
     const minN = Number(minRaw);
@@ -606,6 +612,7 @@ function showSettingsDialog() {
     // ── Persist (only overwrite URL/Token if the user actually typed them) ──
     const updates: Record<string, any> = {
       autoExecute: autoExec,
+      autoSend: autoSendCb,
       delayMin: minN,
       delayMax: maxN,
     };
