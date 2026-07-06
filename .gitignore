@@ -56,3 +56,4 @@ Thumbs.db
 build_extension_singleton.bat
 extension/shit.png
 extension/public/origin-shit.png
+.playwright-cli/
