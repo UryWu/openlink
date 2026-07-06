@@ -710,15 +710,10 @@ async function executeToolCall(toolCall: any) {
       showToast('✅ 文件已写入成功，已停止生成');
       await new Promise(r => setTimeout(r, 600));
       fillAndSend(text, true);
-      // Tool succeeded — also refresh AI context by sending the init prompt
-      // so the next turn starts with the full skill list. 4s delay lets the
-      // tool-result click land first, so init doesn't overwrite it.
-      setTimeout(() => sendInitPrompt(), 4000);
       return;
     }
 
     fillAndSend(text, true);
-    setTimeout(() => sendInitPrompt(), 4000);
   } catch (error) {
     fillAndSend(`[OpenLink 错误] ${error}`, false);
   }
