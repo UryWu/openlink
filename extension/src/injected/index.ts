@@ -45,6 +45,13 @@ function tryParseToolJSON(raw: string): any | null {
 (function() {
   console.log('[OpenLink] 插件已加载');
 
+  // ── Debug switch ────────────────────────────────────────────────────────
+  // Flip to true to see XHR/SSE/fetch/EventSource/WebSocket logs.
+  // The four `工具调用*` / `插件已加载` logs stay on regardless — they're
+  // real signals, not chatter.
+  const DEBUG = false;
+  const debugLog = (...args: any[]) => { if (DEBUG) console.log('[OpenLink]', ...args); };
+
   // ── Dedup state (per conversation) ─────────────────────────────────────
   const processedByConv = new Map<string, Set<string>>();
   function getConvId(): string {
@@ -130,7 +137,7 @@ function tryParseToolJSON(raw: string): any | null {
   const originalFetch = window.fetch;
   window.fetch = function(...args: any[]) {
     const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
-    console.log('[OpenLink] fetch →', url);
+    debugLog('[OpenLink] fetch →', url);
 
     let buffer = '';
     const decoder = new TextDecoder();
@@ -164,7 +171,7 @@ function tryParseToolJSON(raw: string): any | null {
   if (typeof window.EventSource === 'function') {
     const OriginalEventSource = window.EventSource;
     function WrappedEventSource(this: any, url: any, opts?: any) {
-      console.log('[OpenLink] EventSource →', String(url));
+      debugLog('[OpenLink] EventSource →', String(url));
       const es = new OriginalEventSource(url, opts);
       const origAdd = es.addEventListener.bind(es);
       es.addEventListener = function(type: string, listener: any, options?: any) {
@@ -209,14 +216,14 @@ function tryParseToolJSON(raw: string): any | null {
         if (this.readyState === 4) {
           const url = (this as any).__openlinkUrl || '';
           const rt = this.responseText || (typeof this.response === 'string' ? this.response : '');
-          console.log('[OpenLink] XHR ←', url, 'status:', this.status, 'len:', rt.length);
+          debugLog('[OpenLink] XHR ←', url, 'status:', this.status, 'len:', rt.length);
           // DeepSeek streams tool calls via SSE-style JSON fragments
           // (data: {"v":"<"}, data: {"v":"tool"}, ...) — concatenate `v` strings first.
           try { scanText(rt); } catch (e) { /* ignore */ }
           try {
             const reassembled = reassembleSSEFragments(rt);
             if (reassembled !== null) {
-              console.log('[OpenLink] reassembled SSE:', reassembled.length, 'chars');
+              debugLog('[OpenLink] reassembled SSE:', reassembled.length, 'chars');
               scanText(reassembled);
             }
           } catch (e) { /* ignore */ }
@@ -230,7 +237,7 @@ function tryParseToolJSON(raw: string): any | null {
   if (typeof window.WebSocket === 'function') {
     const OriginalWebSocket = window.WebSocket;
     function WrappedWebSocket(this: any, url: any, protocols?: any) {
-      console.log('[OpenLink] WebSocket →', String(url));
+      debugLog('[OpenLink] WebSocket →', String(url));
       const ws = new OriginalWebSocket(url, protocols);
       const origDispatch = ws.dispatchEvent.bind(ws);
       ws.dispatchEvent = function(event: Event) {

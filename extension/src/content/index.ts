@@ -164,6 +164,11 @@ function hashStr(s: string): number {
   return h >>> 0;
 }
 
+// Flip to true to see verbose logs (initial-prompt GET, etc.).
+// The `工具调用*` / `提取到工具调用` logs stay on regardless — real signals.
+const DEBUG = false;
+const debugLog = (...args: any[]) => { if (DEBUG) console.log('[OpenLink]', ...args); };
+
 function getConversationId(): string {
   const m = location.pathname.match(/\/chat\/([^/?#]+)/) || location.search.match(/[?&]id=([^&]+)/);
   return m ? m[1] : '__default__';
@@ -464,7 +469,7 @@ async function sendInitPrompt() {
 
   // Show user what URL we're about to call, for diagnosis
   const requestUrl = `${apiUrl}/prompt`;
-  console.log('[OpenLink] GET', requestUrl, 'token:', authToken ? `${authToken.slice(0, 8)}...(${authToken.length})` : '(none)');
+  debugLog('[OpenLink] GET', requestUrl, 'token:', authToken ? `${authToken.slice(0, 8)}...(${authToken.length})` : '(none)');
 
   const headers: any = { 'Content-Type': 'application/json' };
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
