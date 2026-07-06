@@ -165,10 +165,13 @@ function hashStr(s: string): number {
 }
 
 // ── Shared autoExecute flag (module-level so executeToolCall can read it) ──
+// Default true to match original behavior (always auto-execute on first run).
 // Read at startup, kept live via chrome.storage.onChanged so toggling the
 // setting in the floating ⚙️ dialog takes effect without reload.
-let autoExecute = false;
-chrome.storage.local.get(['autoExecute']).then(r => { autoExecute = !!r.autoExecute; });
+let autoExecute = true;
+chrome.storage.local.get(['autoExecute']).then(r => {
+  if (r.autoExecute !== undefined) autoExecute = !!r.autoExecute;
+});
 chrome.storage.onChanged.addListener((changes) => {
   if ('autoExecute' in changes) autoExecute = !!changes.autoExecute.newValue;
 });
@@ -543,7 +546,7 @@ function showSettingsDialog() {
   chrome.storage.local.get(['authToken', 'apiUrl', 'autoExecute', 'delayMin', 'delayMax']).then((cfg: any) => {
     (document.getElementById('openlink-url') as HTMLInputElement).value = cfg.apiUrl || '';
     (document.getElementById('openlink-token') as HTMLInputElement).value = cfg.authToken || '';
-    (document.getElementById('openlink-auto-execute') as HTMLInputElement).checked = !!cfg.autoExecute;
+    (document.getElementById('openlink-auto-execute') as HTMLInputElement).checked = cfg.autoExecute !== false;
     (document.getElementById('openlink-delay-min') as HTMLInputElement).value = cfg.delayMin != null ? String(cfg.delayMin) : '1';
     (document.getElementById('openlink-delay-max') as HTMLInputElement).value = cfg.delayMax != null ? String(cfg.delayMax) : '4';
   });
