@@ -668,13 +668,71 @@ function showQuestionPopup(question: string, options: string[]): Promise<string>
   });
 }
 
+// Modal approval dialog for tool calls when autoExecute is OFF.
+// Shows tool name + args, two buttons: 执行 / 忽略. Resolves with the
+// user's decision so the caller can proceed or bail.
+function showToolApprovalPopup(toolCall: any): Promise<'execute' | 'ignore'> {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2147483647;display:flex;align-items:center;justify-content:center';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#1e1e2e;color:#cdd6f4;border-radius:12px;padding:24px;max-width:520px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.5);font-family:monospace';
+
+    const title = document.createElement('p');
+    title.style.cssText = 'margin:0 0 12px;font-size:14px;color:#89b4fa;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif';
+    title.textContent = `🔧 openlink 检测到工具调用（自动执行已关闭）`;
+    box.appendChild(title);
+
+    const nameEl = document.createElement('div');
+    nameEl.style.cssText = 'margin-bottom:12px;padding:10px 12px;background:#181825;border-radius:6px;font-size:14px;color:#a6e3a1';
+    nameEl.textContent = `工具: ${toolCall.name}${toolCall.callId ? ` (#${toolCall.callId})` : ''}`;
+    box.appendChild(nameEl);
+
+    if (toolCall.args && Object.keys(toolCall.args).length > 0) {
+      const argsEl = document.createElement('div');
+      argsEl.style.cssText = 'margin-bottom:16px;padding:10px 12px;background:#181825;border-radius:6px;font-size:12px;max-height:160px;overflow-y:auto;white-space:pre-wrap;color:#cdd6f4';
+      argsEl.textContent = JSON.stringify(toolCall.args, null, 2);
+      box.appendChild(argsEl);
+    }
+
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+    const execBtn = document.createElement('button');
+    execBtn.textContent = '执行';
+    execBtn.style.cssText = 'padding:8px 16px;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px';
+    const ignoreBtn = document.createElement('button');
+    ignoreBtn.textContent = '忽略';
+    ignoreBtn.style.cssText = 'padding:8px 16px;background:#313244;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;cursor:pointer;font-size:13px';
+    btnRow.appendChild(ignoreBtn);
+    btnRow.appendChild(execBtn);
+    box.appendChild(btnRow);
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    // ESC or click outside = 忽略
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) { overlay.remove(); resolve('ignore'); }
+    });
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { overlay.remove(); resolve('ignore'); }
+    };
+    document.addEventListener('keydown', onKey, { once: true });
+
+    execBtn.onclick = () => { overlay.remove(); resolve('execute'); };
+    ignoreBtn.onclick = () => { overlay.remove(); resolve('ignore'); };
+  });
+}
+
 async function executeToolCall(toolCall: any) {
-  // Honor the autoExecute setting (shared with DOM-observer path above).
-  // When off, tool calls from injected.js path are detected but not run —
-  // user re-triggers by clicking the 🔗 init button or by re-asking the AI.
+  // When autoExecute is off, surface the tool call as an approval popup so
+  // the user can manually trigger or skip it. Default to execute when on.
   if (!autoExecute) {
-    console.log('[OpenLink] autoExecute 已关闭，跳过工具调用:', toolCall.name);
-    return;
+    const decision = await showToolApprovalPopup(toolCall);
+    if (decision !== 'execute') {
+      console.log('[OpenLink] autoExecute 关闭, 用户选择忽略:', toolCall.name);
+      return;
+    }
   }
 
   if (toolCall.name === 'question') {
