@@ -109,9 +109,15 @@ if _HAS_FRONTEND:
 
 
 # ── CLI entry point ───────────────────────────────────────────────────────
+# The `openlink` console script entrypoint was removed from pyproject.toml —
+# run() parsed -dir/-port/-timeout but never forwarded them to uvicorn
+# (which starts without lifespan), so the args were silently dropped.
+# Use the working path: uv run python -m app.main -dir <workspace> -port 39527
+# When run() is fixed to wire CLI args through to AppConfig, restore the
+# [project.scripts] entry in pyproject.toml and this stub can go.
 
 def run():
-    """Entry point for `openlink` CLI command (pyproject.toml scripts)."""
+    """Entry point kept for `python -m app.main` direct invocation."""
     parser = argparse.ArgumentParser(description="openlink server")
     parser.add_argument("-dir", "--root_dir", default=None, help="working directory")
     parser.add_argument("-port", "--port", type=int, default=39527, help="server port")

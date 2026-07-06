@@ -70,13 +70,16 @@ Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "  安装完成！" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "启动服务器：" -ForegroundColor Yellow
-Write-Host "  cd backend && uv run openlink -dir /your/workspace"
+Write-Host "启动服务器（让 AI 助手能读写指定项目目录）：" -ForegroundColor Yellow
+Write-Host "  .\start.ps1                                # 默认：工作区 = openlink 仓库根"
+Write-Host "  .\start.ps1 -Workspace D:\path\to\project  # 指定工作区"
+Write-Host ""
+Write-Host "  等价手动命令: cd backend && uv run python -m app.main -dir <workspace_path> -port 39527" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "加载 Chrome 扩展：" -ForegroundColor Yellow
 Write-Host "  1. 打开 chrome://extensions/"
 Write-Host "  2. 启用「开发者模式」"
-Write-Host "  3. 加载 extension/dist/ 目录"
+Write-Host "  3. 加载 extension\dist\ 目录"
 Write-Host ""
 Write-Host "启动管理面板（开发模式）：" -ForegroundColor Yellow
 Write-Host "  cd frontend && npm run dev"

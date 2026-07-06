@@ -12,8 +12,10 @@ dependencies = [
     "uvicorn[standard]>=0.50.1",
 ]
 
-[project.scripts]
-openlink = "app.main:run"
+# [project.scripts] removed: openlink CLI parsed args but never forwarded them
+# to uvicorn (which bypasses lifespan), so -dir was silently dropped.
+# Use: uv run python -m app.main -dir <workspace> -port 39527
+# Restore this entry after run() is fixed to actually wire CLI → AppConfig.
 
 [dependency-groups]
 dev = [
