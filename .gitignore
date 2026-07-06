@@ -18,6 +18,25 @@ go.work
 # Dependency directories
 vendor/
 node_modules/
+backend/.venv/
+backend/.venv.bak/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Frontend build artifacts
+frontend/dist/
+
+# Extension build artifacts
+extension/*.crx
+extension/*.pem
+extension/dist/
+
+# Top-level build outputs
+dist/
 
 # IDE
 .vscode/
@@ -30,8 +49,9 @@ node_modules/
 .DS_Store
 Thumbs.db
 
-# Extension build artifacts
-extension/*.crx
-extension/*.pem
-extension/dist/
-dist/
+# Temporary files
+*.bak
+*.tmp
+build_extension_singleton.bat
+extension/shit.png
+extension/public/origin-shit.png
