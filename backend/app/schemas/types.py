@@ -47,7 +47,7 @@ class HealthResponse(BaseModel):
     """GET /health response."""
     status: str = "ok"
     dir: str = ""
-    version: str = "1.0.0"
+    version: str = "1.1.1"
 
 
 class AuthResponse(BaseModel):

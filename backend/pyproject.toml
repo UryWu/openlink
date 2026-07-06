@@ -1,6 +1,6 @@
 [project]
 name = "openlink"
-version = "1.0.0"
+version = "1.1.1"
 description = "Browser-local proxy for AI assistants to access local filesystem"
 requires-python = ">=3.12"
 dependencies = [

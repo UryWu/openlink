@@ -16,4 +16,4 @@ def _get_config() -> AppConfig:
 @router.get("/health", response_model=HealthResponse)
 async def health():
     cfg = _get_config()
-    return HealthResponse(status="ok", dir=cfg.root_dir, version="1.0.0")
+    return HealthResponse(status="ok", dir=cfg.root_dir, version="1.1.1")
