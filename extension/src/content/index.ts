@@ -538,9 +538,10 @@ function showSettingsDialog() {
         </div>
         <div style="margin-top:4px;font-size:11px;color:#6b7280;">每次触发时在 x 与 y 之间随机取一个秒数</div>
       </label>
-      <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
         <button id="openlink-cancel" style="padding:8px 16px;background:transparent;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;cursor:pointer;">取消</button>
         <button id="openlink-save" style="padding:8px 16px;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;">保存</button>
+        <button id="openlink-init-from-dialog" title="向 AI 发送系统提示词（无需保存设置）" style="padding:8px 16px;background:#1e1e2e;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;cursor:pointer;font-size:13px;">🔗 初始化</button>
       </div>
     </div>
   `;
@@ -558,6 +559,13 @@ function showSettingsDialog() {
 
   const close = () => overlay.remove();
   document.getElementById('openlink-cancel')!.addEventListener('click', close);
+  // "🔗 初始化" from inside the settings dialog — same action as the
+  // floating 🔗 button (send system prompt to AI). Closes the dialog first
+  // so the user sees the prompt being filled/sent into the editor cleanly.
+  document.getElementById('openlink-init-from-dialog')!.addEventListener('click', () => {
+    close();
+    sendInitPrompt();
+  });
   document.getElementById('openlink-save')!.addEventListener('click', async () => {
     let url = (document.getElementById('openlink-url') as HTMLInputElement).value.trim();
     const token = (document.getElementById('openlink-token') as HTMLInputElement).value.trim();
