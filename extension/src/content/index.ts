@@ -139,8 +139,8 @@ if (!(window as any).__OPENLINK_LOADED__) {
     }
   });
 
-  if (document.body) injectInitButton();
-  else document.addEventListener('DOMContentLoaded', injectInitButton);
+  if (document.body) injectSettingsButton();
+  else document.addEventListener('DOMContentLoaded', injectSettingsButton);
 
   function mountInputListener() {
     const editorEl = querySelectorFirst(cfg.editor);
@@ -434,28 +434,18 @@ function startDOMObserver(_responseSelector: string) {
   });
 }
 
-function injectInitButton() {
-  // Remove any pre-existing button group (handles reinstalls / duplicate injections)
+function injectSettingsButton() {
+  // Remove any pre-existing button (handles reinstalls / duplicate injections)
   document.getElementById('openlink-buttons')?.remove();
 
-  const wrap = document.createElement('div');
-  wrap.id = 'openlink-buttons';
-  wrap.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:99999;display:flex;gap:8px;align-items:center;';
-
   const btn = document.createElement('button');
-  btn.textContent = '🔗 初始化';
-  btn.style.cssText = 'padding:8px 14px;background:#1677ff;color:#fff;border:none;border-radius:20px;cursor:pointer;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.3)';
-  btn.onclick = sendInitPrompt;
+  btn.id = 'openlink-buttons';
+  btn.textContent = 'OpenLink设置';
+  btn.title = 'OpenLink 设置';
+  btn.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:99999;padding:8px 14px;background:#1677ff;color:#fff;border:none;border-radius:20px;cursor:pointer;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.3)';
+  btn.onclick = showSettingsDialog;
 
-  const settings = document.createElement('button');
-  settings.textContent = 'OpenLink设置';
-  settings.title = 'OpenLink 设置';
-  settings.style.cssText = 'padding:8px 14px;background:#1677ff;color:#fff;border:none;border-radius:20px;cursor:pointer;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.3)';
-  settings.onclick = showSettingsDialog;
-
-  wrap.appendChild(settings);
-  wrap.appendChild(btn);
-  document.body.appendChild(wrap);
+  document.body.appendChild(btn);
 }
 
 async function bgFetch(url: string, options?: any): Promise<{ ok: boolean; status: number; body: string }> {
