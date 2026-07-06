@@ -606,8 +606,8 @@ function showSettingsDialog() {
       saveBtn.disabled = false;
       saveBtn.textContent = '保存';
       close();
-      // Only trigger init prompt when URL/Token actually changed.
-      if (urlChanged || tokenChanged) sendInitPrompt();
+      // Settings saved — do NOT auto-trigger initialization. The user clicks
+      // the 🔗 init button manually when ready.
     });
   });
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
