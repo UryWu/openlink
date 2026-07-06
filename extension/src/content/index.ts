@@ -668,59 +668,81 @@ function showQuestionPopup(question: string, options: string[]): Promise<string>
   });
 }
 
-// Modal approval dialog for tool calls when autoExecute is OFF.
-// Shows tool name + args, two buttons: 执行 / 忽略. Resolves with the
-// user's decision so the caller can proceed or bail.
+// Inline approval card for tool calls when autoExecute is OFF.
+// Inserts a non-modal card directly under the AI message that produced the
+// tool call (no full-screen overlay, doesn't block clicking elsewhere).
+// Resolves with the user's decision so the caller can proceed or bail.
 function showToolApprovalPopup(toolCall: any): Promise<'execute' | 'ignore'> {
   return new Promise(resolve => {
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2147483647;display:flex;align-items:center;justify-content:center';
-    const box = document.createElement('div');
-    box.style.cssText = 'background:#1e1e2e;color:#cdd6f4;border-radius:12px;padding:24px;max-width:520px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.5);font-family:monospace';
-
-    const title = document.createElement('p');
-    title.style.cssText = 'margin:0 0 12px;font-size:14px;color:#89b4fa;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif';
-    title.textContent = `🔧 openlink 检测到工具调用（自动执行已关闭）`;
-    box.appendChild(title);
-
-    const nameEl = document.createElement('div');
-    nameEl.style.cssText = 'margin-bottom:12px;padding:10px 12px;background:#181825;border-radius:6px;font-size:14px;color:#a6e3a1';
-    nameEl.textContent = `工具: ${toolCall.name}${toolCall.callId ? ` (#${toolCall.callId})` : ''}`;
-    box.appendChild(nameEl);
-
-    if (toolCall.args && Object.keys(toolCall.args).length > 0) {
-      const argsEl = document.createElement('div');
-      argsEl.style.cssText = 'margin-bottom:16px;padding:10px 12px;background:#181825;border-radius:6px;font-size:12px;max-height:160px;overflow-y:auto;white-space:pre-wrap;color:#cdd6f4';
-      argsEl.textContent = JSON.stringify(toolCall.args, null, 2);
-      box.appendChild(argsEl);
+    // Find the wrapper that holds the latest assistant message + its toolbar.
+    // DeepSeek structure: div._4f9bf79 > [.ds-message, .ds-flex(toolbar)]
+    // The wrapper has class _4f9bf79; check for assistant content inside.
+    const wrappers = document.querySelectorAll('[class*="_4f9bf79"]');
+    let targetWrapper: Element | null = null;
+    for (let i = wrappers.length - 1; i >= 0; i--) {
+      if (wrappers[i].querySelector('.ds-assistant-message-main-content')) {
+        targetWrapper = wrappers[i];
+        break;
+      }
     }
 
-    const btnRow = document.createElement('div');
-    btnRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
-    const execBtn = document.createElement('button');
-    execBtn.textContent = '执行';
-    execBtn.style.cssText = 'padding:8px 16px;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px';
-    const ignoreBtn = document.createElement('button');
-    ignoreBtn.textContent = '忽略';
-    ignoreBtn.style.cssText = 'padding:8px 16px;background:#313244;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;cursor:pointer;font-size:13px';
-    btnRow.appendChild(ignoreBtn);
-    btnRow.appendChild(execBtn);
-    box.appendChild(btnRow);
+    const buildCard = () => {
+      const card = document.createElement('div');
+      card.setAttribute('data-openlink-approval', 'true');
+      card.style.cssText = 'margin:8px 12px 12px;padding:12px 14px;border:1px solid #45475a;border-radius:8px;background:#1e1e2e;color:#cdd6f4;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;display:flex;flex-direction:column;gap:10px';
 
-    overlay.appendChild(box);
-    document.body.appendChild(overlay);
+      const header = document.createElement('div');
+      header.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap';
+      const titleEl = document.createElement('span');
+      titleEl.style.cssText = 'color:#89b4fa;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;font-size:13px';
+      titleEl.textContent = '🔧 openlink 检测到工具调用（自动执行已关闭）';
+      header.appendChild(titleEl);
+      const nameEl = document.createElement('span');
+      nameEl.style.cssText = 'padding:3px 8px;background:#181825;border-radius:4px;color:#a6e3a1;font-size:12px';
+      nameEl.textContent = `${toolCall.name}${toolCall.callId ? ' #' + toolCall.callId : ''}`;
+      header.appendChild(nameEl);
+      card.appendChild(header);
 
-    // ESC or click outside = 忽略
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) { overlay.remove(); resolve('ignore'); }
-    });
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { overlay.remove(); resolve('ignore'); }
+      if (toolCall.args && Object.keys(toolCall.args).length > 0) {
+        const argsEl = document.createElement('pre');
+        argsEl.style.cssText = 'margin:0;padding:8px 10px;background:#181825;border-radius:6px;font-size:12px;max-height:140px;overflow-y:auto;white-space:pre-wrap;color:#cdd6f4;font-family:inherit';
+        argsEl.textContent = JSON.stringify(toolCall.args, null, 2);
+        card.appendChild(argsEl);
+      }
+
+      const btnRow = document.createElement('div');
+      btnRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+      const ignoreBtn = document.createElement('button');
+      ignoreBtn.textContent = '忽略';
+      ignoreBtn.style.cssText = 'padding:6px 14px;background:transparent;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;cursor:pointer;font-size:13px';
+      const execBtn = document.createElement('button');
+      execBtn.textContent = '执行';
+      execBtn.style.cssText = 'padding:6px 14px;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500';
+      btnRow.appendChild(ignoreBtn);
+      btnRow.appendChild(execBtn);
+      card.appendChild(btnRow);
+
+      execBtn.onclick = () => { card.remove(); resolve('execute'); };
+      ignoreBtn.onclick = () => { card.remove(); resolve('ignore'); };
+      return card;
     };
-    document.addEventListener('keydown', onKey, { once: true });
 
-    execBtn.onclick = () => { overlay.remove(); resolve('execute'); };
-    ignoreBtn.onclick = () => { overlay.remove(); resolve('ignore'); };
+    if (targetWrapper) {
+      // Anchor inside the AI message wrapper, after the toolbar.
+      targetWrapper.appendChild(buildCard());
+    } else {
+      // Fallback: float at top-right (no modal, no backdrop, no click-blocking).
+      const float = document.createElement('div');
+      float.style.cssText = 'position:fixed;top:80px;right:20px;z-index:99999;width:380px;max-width:90vw';
+      const card = buildCard();
+      // Wrap click handlers so removing the float also fires the resolve.
+      const origExec = card.querySelectorAll('button')[1]?.onclick;
+      const origIgn = card.querySelectorAll('button')[0]?.onclick;
+      card.querySelectorAll('button')[1]!.onclick = (e) => { float.remove(); if (origExec) (origExec as any)(e); };
+      card.querySelectorAll('button')[0]!.onclick = (e) => { float.remove(); if (origIgn) (origIgn as any)(e); };
+      float.appendChild(card);
+      document.body.appendChild(float);
+    }
   });
 }
 
