@@ -34,10 +34,14 @@ def _build_init_prompt(config: AppConfig) -> str:
     Searches multiple candidate paths so the prompt can live either next
     to the package (backend/prompts/) or at the repo root (prompts/).
     """
-    here = os.path.dirname(os.path.abspath(__file__))
+    here = os.path.dirname(os.path.abspath(__file__))   # backend/app/executor/
+    # The file currently ships at the repo root (prompts/init_prompt.txt).
+    # Older revisions placed it at backend/prompts/, so check both layouts
+    # plus a few sibling locations to be safe across packaging.
     candidates = [
-        os.path.join(here, "..", "prompts", "init_prompt.txt"),       # backend/prompts/
-        os.path.join(here, "..", "..", "prompts", "init_prompt.txt"),  # repo-root prompts/
+        os.path.join(here, "..", "..", "..", "prompts", "init_prompt.txt"),  # repo-root prompts/
+        os.path.join(here, "..", "..", "prompts", "init_prompt.txt"),        # backend/prompts/
+        os.path.join(here, "..", "prompts", "init_prompt.txt"),              # backend/app/prompts/
     ]
     prompt = None
     for prompt_path in candidates:
@@ -46,7 +50,8 @@ def _build_init_prompt(config: AppConfig) -> str:
                 prompt = f.read()
                 break
     if prompt is None:
-        # Fallback hardcoded minimal prompt
+        # Fallback hardcoded minimal prompt — this branch means the
+        # operators mis-deployed the project (prompt file missing).
         prompt = "You are openlink, an interactive CLI tool for software engineering tasks.\n\n{{SYSTEM_INFO}}"
 
     prompt = prompt.replace("{{SYSTEM_INFO}}", _build_system_info(config))
