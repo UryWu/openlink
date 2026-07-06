@@ -164,6 +164,15 @@ function hashStr(s: string): number {
   return h >>> 0;
 }
 
+// ── Shared autoExecute flag (module-level so executeToolCall can read it) ──
+// Read at startup, kept live via chrome.storage.onChanged so toggling the
+// setting in the floating ⚙️ dialog takes effect without reload.
+let autoExecute = false;
+chrome.storage.local.get(['autoExecute']).then(r => { autoExecute = !!r.autoExecute; });
+chrome.storage.onChanged.addListener((changes) => {
+  if ('autoExecute' in changes) autoExecute = !!changes.autoExecute.newValue;
+});
+
 // Flip to true to see verbose logs (initial-prompt GET, etc.).
 // The `工具调用*` / `提取到工具调用` logs stay on regardless — real signals.
 const DEBUG = false;
@@ -282,11 +291,9 @@ function renderToolCard(data: any, _full: string, sourceEl: Element, key: string
 function startDOMObserver(_responseSelector: string) {
   const processed = new Set<string>();
   const TOOL_RE = /<tool(?:\s[^>]*)?>[\s\S]*?<\/tool>/g;
-  let autoExecute = false;
-  chrome.storage.local.get(['autoExecute']).then(r => { autoExecute = !!r.autoExecute; });
-  chrome.storage.onChanged.addListener((changes) => {
-    if ('autoExecute' in changes) autoExecute = !!changes.autoExecute.newValue;
-  });
+  // autoExecute state is shared at module scope (declared above) so both
+  // DOM observer path and the injected.js → TOOL_CALL → executeToolCall
+  // path honor the same setting.
 
   function scanText(text: string, sourceEl?: Element) {
     if (!text.includes('<tool')) return;
@@ -659,6 +666,14 @@ function showQuestionPopup(question: string, options: string[]): Promise<string>
 }
 
 async function executeToolCall(toolCall: any) {
+  // Honor the autoExecute setting (shared with DOM-observer path above).
+  // When off, tool calls from injected.js path are detected but not run —
+  // user re-triggers by clicking the 🔗 init button or by re-asking the AI.
+  if (!autoExecute) {
+    console.log('[OpenLink] autoExecute 已关闭，跳过工具调用:', toolCall.name);
+    return;
+  }
+
   if (toolCall.name === 'question') {
     const q: string = toolCall.args?.question ?? '';
     const rawOpts = toolCall.args?.options;
