@@ -88,8 +88,18 @@ function getSiteConfig(): SiteConfig {
     return { editor: '#chat-input', sendBtn: '#send-message-button', stopBtn: null, fillMethod: 'value', useObserver: false };
   if (h.includes('arena.ai'))
     return { editor: 'textarea[name="message"], textarea[placeholder="Ask followup…"]', sendBtn: 'button[type="submit"]', stopBtn: null, fillMethod: 'value', useObserver: true, responseSelector: '.prose' };
-  // Default: DeepSeek
-  return { editor: '[data-slate-editor="true"]', sendBtn: '.operateBtn-JsB9e2:not(.disabled-ZaDDJC)', stopBtn: '.stop-yGpvO2 img', fillMethod: 'paste', useObserver: false };
+  if (h.includes('deepseek.com'))
+    // DeepSeek uses Slate.js + CSS Modules (hashed class names change between deploys),
+    // so each selector keeps a hashed class first, then aria-label fallbacks for robustness.
+    return {
+      editor: '[data-slate-editor="true"]',
+      sendBtn: '.operateBtn-JsB9e2:not(.disabled-ZaDDJC), button[aria-label*="发送"], button[aria-label*="Send"]',
+      stopBtn: '.stop-yGpvO2 img, button[aria-label*="停止"] img, button[aria-label*="Stop"] img',
+      fillMethod: 'paste',
+      useObserver: false,
+    };
+  // Default: empty selectors — safe no-op for any unmatched host.
+  return { editor: '', sendBtn: '', stopBtn: null, fillMethod: 'value', useObserver: false };
 }
 
 if (!(window as any).__OPENLINK_LOADED__) {
