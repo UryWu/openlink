@@ -4,32 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-openlink is a browser-local proxy that enables web-based AI assistants (Gemini/ChatGPT/DeepSeek etc.) to access the local filesystem through a sandboxed Go server and Chrome extension.
+openlink is a browser-local proxy that enables web-based AI assistants (Gemini/ChatGPT/DeepSeek etc.) to access the local filesystem through a sandboxed FastAPI server and Chrome extension.
 
-**Architecture**: Two-component system:
-1. **Go Server** (`cmd/server/main.go`): HTTP server that executes filesystem operations within a sandboxed directory
+**Architecture**: Three-component system:
+1. **FastAPI Server** (`backend/app/main.py`): HTTP server that executes filesystem operations within a sandboxed directory
 2. **Chrome Extension** (`extension/src/content/index.ts`): Content script that intercepts AI tool calls from web pages, proxies them to the local server, and provides input completion UI
+3. **Vue 3 Dashboard** (`frontend/src/`): Web-based management panel served at `/app/`
 
 ## Development Commands
 
 ### Running the Server
 
 ```bash
-# Start server with default settings (current dir, port 39527)
-go run cmd/server/main.go
-
-# Start with custom workspace and port
-go run cmd/server/main.go -dir=/path/to/workspace -port=39527 -timeout=60
-```
-
-### Building
-
-```bash
-# Build server binary
-go build -o openlink cmd/server/main.go
-
-# Run built binary
-./openlink -dir=/your/workspace -port=39527
+cd backend
+uv sync
+uv run openlink -dir /path/to/workspace -port 39527 -timeout 60
 ```
 
 ### Building the Extension
@@ -40,6 +29,15 @@ npm install
 npm run build   # outputs to extension/dist/
 ```
 
+### Building the Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev     # dev server with hot reload
+npm run build   # production build, served by FastAPI at /app/
+```
+
 ### Testing the Server
 
 ```bash
@@ -48,9 +46,6 @@ curl http://127.0.0.1:39527/health
 
 # List available skills
 curl http://127.0.0.1:39527/skills -H "Authorization: Bearer <token>"
-
-# List files (with optional query filter)
-curl "http://127.0.0.1:39527/files?q=main" -H "Authorization: Bearer <token>"
 
 # Test command execution
 curl -X POST http://127.0.0.1:39527/exec \
@@ -77,49 +72,52 @@ Web AI (Gemini/ChatGPT/DeepSeek/etc.)
 content script (extension/src/content/index.ts)
   ↓ MutationObserver detects tool tags, renders card UI
   ↓ HTTP POST to localhost:39527/exec (via background fetch)
-Go Server (internal/server/server.go)
+FastAPI Server (backend/app/main.py)
   ↓ validates & sanitizes
-Executor (internal/executor/executor.go)
+Executor (backend/app/executor/executor.py)
   ↓ executes with sandbox
-Security Layer (internal/security/sandbox.go)
+Security Layer (backend/app/core/security/sandbox.py)
   ↓ path validation & command filtering
 Local Filesystem
 ```
 
 ### Key Components
 
-**internal/types/types.go**: Core data structures
-- `ToolRequest`: Incoming tool call from browser (name, args)
+**backend/app/schemas/types.py**: Core data structures
+- `ToolRequest`: Incoming tool call from browser (name, args, optional arguments alias)
 - `ToolResponse`: Execution result (status, output, error, stopStream)
-- `Config`: Server configuration (RootDir, Port, Timeout, Token, DefaultPrompt)
+- `AppConfig`: Server configuration (root_dir, port, timeout, token)
 
-**internal/security/sandbox.go**: Security enforcement
-- `SafePath()`: Validates all file paths stay within RootDir using absolute path comparison
-- `IsDangerousCommand()`: Blocks dangerous commands (rm -rf, sudo, curl, wget, etc.)
+**backend/app/core/security/sandbox.py**: Security enforcement
+- `safe_path()`: Validates all file paths stay within RootDir via `os.path.realpath()`
+- `is_dangerous_command()`: Blocks dangerous commands (rm -rf, sudo, curl, wget, etc.)
 
-**internal/security/auth.go**: Token-based auth middleware for all routes
+**backend/app/core/security/auth.py**: Token-based auth
+- `load_or_create_token()`: Reads `~/.openlink/settings.json`, generates 32-byte hex token if missing
+- `verify_token()`: FastAPI dependency using HTTPBearer, constant-time comparison via `secrets.compare_digest()`
 
-**internal/executor/executor.go**: Tool execution dispatcher
-- All operations run with context timeout (default 60s)
-- File operations use `SafePath()` before any filesystem access
-- Commands execute via `sh -c` in the configured RootDir
+**backend/app/executor/executor.py**: Tool execution dispatcher
+- All operations run with asyncio timeout (default 60s)
+- Identity reminder injected every call, full init prompt every 20 calls
+- Case-insensitive tool lookup
 
-**internal/tool/**: Individual tool implementations
-- `edit.go`: String replacement with 11-step normalization cascade for AI-generated content
-- Other tools: exec_cmd, list_dir, read_file, write_file, glob, grep, web_fetch, skill, todo_write
+**backend/app/tools/**: Individual tool implementations
+- `edit.py`: 10-strategy string replacement cascade (most complex, ~330 lines)
+- Other tools: exec_cmd, list_dir, read_file, write_file, glob, grep, web_fetch, question, skill, todo_write
 
-**internal/skill/**: Skills loader
-- `LoadInfos(rootDir)`: Scans multiple directories for SKILL.md files, returns name+description list
+**backend/app/skills/loader.py**: Skills loader
+- Scans 7 directories for SKILL.md files, parses YAML frontmatter
 
-**internal/server/server.go**: HTTP API (Gin framework)
+**backend/app/api/**: FastAPI endpoints
 - `GET /health`: Server status and version
 - `GET /config`: Current configuration
-- `GET /prompt`: Returns init prompt with system info and skills list injected
-- `GET /skills`: Lists available skills (name + description)
-- `GET /files?q=`: Lists files under RootDir matching query (max 50, skips .git/node_modules/etc.)
+- `GET /prompt`: Init prompt with system info and skills list
+- `GET /skills`: Available skills (name + description)
+- `GET /tools`: Registered tools with parameters
+- `GET /files?q=`: File listing under RootDir (max 50, skips .git/node_modules)
 - `POST /exec`: Execute tool requests
 - `POST /auth`: Validate token
-- CORS enabled for all origins (required for browser extension)
+- CORS enabled for all origins
 
 **extension/src/content/index.ts**: Main content script
 - `getSiteConfig()`: Per-site selectors for editor, send button, fill method
@@ -130,8 +128,10 @@ Local Filesystem
 - `showPickerPopup()`: Keyboard-navigable dropdown for skill/file selection
 - `replaceTokenInEditor()`: Cross-platform token replacement (value/execCommand/prosemirror/paste)
 
-**prompts/init_prompt.txt**: Default system prompt injected into AI on initialization
-- Contains tool definitions, usage rules, and `{{SYSTEM_INFO}}` placeholder
+**frontend/src/**: Vue 3 SPA
+- Pages: Dashboard, Connection, ToolConsole, FileBrowser, SkillsView, PromptViewer, Settings
+- Stores (Pinia): connection, tools, skills
+- API client: Axios with Bearer token interceptor
 
 ### Supported AI Platforms
 
@@ -152,53 +152,9 @@ Local Filesystem
 | t3.chat | value | false | |
 | z.ai | value | false | |
 
-### Security Model
-
-**Sandbox Isolation**: All file operations restricted to configured RootDir
-- Path traversal attacks blocked by absolute path comparison after `filepath.EvalSymlinks`
-- Symlinks resolved before validation in both executor and `/files` endpoint
-
-**Command Filtering**: Dangerous commands blocked before execution
-- Destructive: `rm -rf`, `mkfs`, `dd`, `format`
-- Network: `curl`, `wget`, `nc`, `netcat`
-- Privilege: `sudo`, `chmod 777`
-- System: `kill -9`, `reboot`, `shutdown`
-
-**Token Auth**: All API endpoints protected by Bearer token (stored in `~/.openlink/token`)
-
-**Timeout Control**: All commands timeout after configured duration (default 60s)
-
-**Manual Confirmation**: Extension renders tool card UI; user clicks "执行" to run each tool call
-
-### Input Completion (extension)
-
-The content script attaches an `input` event listener to the AI platform's editor element:
-
-- Typing `/` triggers skill completion: fetches `GET /skills`, shows picker, inserts `<tool name="skill">` XML on select
-- Typing `@` triggers file completion: fetches `GET /files?q=<query>`, shows picker, inserts file path on select
-- Picker supports ↑/↓ navigation, Enter to confirm, Escape to dismiss
-- Results are cached (skills: 30s, files: 5s) to avoid excessive requests
-- Race conditions prevented via `inputVersion` counter
-
-### Skills System
-
-Skills are Markdown files that extend AI capabilities for specific domains. Scanned directories (in priority order):
-
-```
-<rootDir>/.skills/
-<rootDir>/.openlink/skills/
-<rootDir>/.agent/skills/
-<rootDir>/.claude/skills/
-~/.openlink/skills/
-~/.agent/skills/
-~/.claude/skills/
-```
-
-Each skill is a subdirectory containing `SKILL.md` with frontmatter (`name`, `description`).
-
 ## Module Information
 
-- **Module**: `github.com/betgar/openlink`
-- **Go Version**: 1.23.0+ (toolchain 1.24.10)
-- **Main Dependencies**: Gin web framework, standard library only
-- **Extension**: TypeScript, Manifest V3, built with esbuild/webpack
+- **Backend**: Python >= 3.12, FastAPI + Pydantic + httpx + uvicorn
+- **Package Manager**: uv
+- **Frontend**: Vue 3 + Pinia + Vue Router + Axios, built with Vite
+- **Extension**: TypeScript, Manifest V3, built with Vite

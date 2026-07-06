@@ -395,24 +395,56 @@ function startDOMObserver(_responseSelector: string) {
 }
 
 function injectInitButton() {
+  // Remove any pre-existing button group (handles reinstalls / duplicate injections)
+  document.getElementById('openlink-buttons')?.remove();
+
+  const wrap = document.createElement('div');
+  wrap.id = 'openlink-buttons';
+  wrap.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:99999;display:flex;gap:8px;align-items:center;';
+
   const btn = document.createElement('button');
   btn.textContent = '🔗 初始化';
-  btn.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:99999;padding:8px 14px;background:#1677ff;color:#fff;border:none;border-radius:20px;cursor:pointer;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.3)';
+  btn.style.cssText = 'padding:8px 14px;background:#1677ff;color:#fff;border:none;border-radius:20px;cursor:pointer;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.3)';
   btn.onclick = sendInitPrompt;
-  document.body.appendChild(btn);
+
+  const settings = document.createElement('button');
+  settings.textContent = '⚙️';
+  settings.title = 'OpenLink 设置';
+  settings.style.cssText = 'padding:8px 10px;background:#1e1e1e;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:50%;cursor:pointer;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.3)';
+  settings.onclick = showSettingsDialog;
+
+  wrap.appendChild(settings);
+  wrap.appendChild(btn);
+  document.body.appendChild(wrap);
 }
 
 async function bgFetch(url: string, options?: any): Promise<{ ok: boolean; status: number; body: string }> {
-  return chrome.runtime.sendMessage({ type: 'FETCH', url, options });
+  try {
+    if (!chrome.runtime?.id) {
+      return { ok: false, status: -1, body: '请刷新页面后重试（扩展刚刚被更新）' };
+    }
+    return await chrome.runtime.sendMessage({ type: 'FETCH', url, options });
+  } catch (e: any) {
+    const msg = String(e?.message || e);
+    if (msg.includes('Extension context invalidated') || msg.includes('Receiving end does not exist')) {
+      return { ok: false, status: -1, body: '请刷新页面后重试（扩展刚刚被更新）' };
+    }
+    throw e;
+  }
 }
 
 async function sendInitPrompt() {
   const { authToken, apiUrl } = await chrome.storage.local.get(['authToken', 'apiUrl']);
-  if (!apiUrl) { alert('请先在插件中配置 API 地址'); return; }
+  if (!apiUrl) { showSettingsDialog(); return; }
+
+  // Show user what URL we're about to call, for diagnosis
+  const requestUrl = `${apiUrl}/prompt`;
+  console.log('[OpenLink] GET', requestUrl, 'token:', authToken ? `${authToken.slice(0, 8)}...(${authToken.length})` : '(none)');
+
   const headers: any = { 'Content-Type': 'application/json' };
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-  const resp = await bgFetch(`${apiUrl}/prompt`, { headers });
-  if (!resp.ok) { alert('获取初始化提示词失败'); return; }
+  const resp = await bgFetch(requestUrl, { headers });
+  if (!resp.ok) { alert(`获取初始化提示词失败\nURL: ${requestUrl}\n状态: ${resp.status}\n响应: ${resp.body?.slice(0, 200) || '(空)'}`); return; }
 
   if (location.hostname.includes('aistudio.google.com')) {
     await fillAiStudioSystemInstructions(resp.body);
@@ -420,6 +452,91 @@ async function sendInitPrompt() {
   }
 
   fillAndSend(resp.body, true);
+}
+
+/** Lightweight settings dialog — opened when extension has no API URL configured. */
+function showSettingsDialog() {
+  if (document.getElementById('openlink-settings-dialog')) return;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'openlink-settings-dialog';
+  overlay.style.cssText = [
+    'position:fixed', 'inset:0', 'z-index:999999',
+    'background:rgba(0,0,0,0.5)',
+    'display:flex', 'align-items:center', 'justify-content:center',
+    'font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
+  ].join(';');
+
+  overlay.innerHTML = `
+    <div style="background:#1e1e1e;color:#e1e3ec;padding:24px;border-radius:12px;width:420px;max-width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.5)">
+      <h2 style="margin:0 0 16px;font-size:18px;">OpenLink 设置</h2>
+      <label style="display:block;margin-bottom:12px;font-size:13px;color:#9aa0a8;">
+        API 地址
+        <input id="openlink-url" type="text" placeholder="http://127.0.0.1:39527"
+          style="display:block;width:100%;margin-top:4px;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:13px;box-sizing:border-box">
+      </label>
+      <label style="display:block;margin-bottom:16px;font-size:13px;color:#9aa0a8;">
+        Token
+        <input id="openlink-token" type="password" placeholder="token"
+          style="display:block;width:100%;margin-top:4px;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:13px;box-sizing:border-box">
+      </label>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button id="openlink-cancel" style="padding:8px 16px;background:transparent;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;cursor:pointer;">取消</button>
+        <button id="openlink-save" style="padding:8px 16px;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;">保存</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // Pre-fill from existing storage
+  chrome.storage.local.get(['authToken', 'apiUrl']).then((cfg: any) => {
+    (document.getElementById('openlink-url') as HTMLInputElement).value = cfg.apiUrl || '';
+    (document.getElementById('openlink-token') as HTMLInputElement).value = cfg.authToken || '';
+  });
+
+  const close = () => overlay.remove();
+  document.getElementById('openlink-cancel')!.addEventListener('click', close);
+  document.getElementById('openlink-save')!.addEventListener('click', async () => {
+    let url = (document.getElementById('openlink-url') as HTMLInputElement).value.trim();
+    const token = (document.getElementById('openlink-token') as HTMLInputElement).value.trim();
+    // Strip trailing slash to avoid double-slash in requests
+    while (url.endsWith('/')) url = url.slice(0, -1);
+    if (!url) { alert('请填写 API 地址'); return; }
+    if (!token) {
+      alert('请填写 Token\n\nToken 来自：\n  C:\\Users\\UryWu\\.openlink\\settings.json\n\n打开那个文件，复制 "token" 字段的值');
+      return;
+    }
+
+    // Verify token against server before saving
+    const saveBtn = document.getElementById('openlink-save') as HTMLButtonElement;
+    saveBtn.disabled = true;
+    saveBtn.textContent = '验证中...';
+    try {
+      const probe = await bgFetch(`${url}/auth`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!probe.ok || !probe.body?.includes('"valid":true')) {
+        alert(`Token 验证失败\n\n后端响应: ${probe.body?.slice(0, 200) || `状态 ${probe.status}`}\n\n请检查：\n1. 后端是否在运行\n2. Token 是不是当前 settings.json 里的值\n3. API 地址末尾不要带 /`);
+        saveBtn.disabled = false;
+        saveBtn.textContent = '保存';
+        return;
+      }
+    } catch (e: any) {
+      alert('连接后端失败：' + (e?.message || e));
+      saveBtn.disabled = false;
+      saveBtn.textContent = '保存';
+      return;
+    }
+
+    chrome.storage.local.set({ apiUrl: url, authToken: token }, () => {
+      saveBtn.disabled = false;
+      saveBtn.textContent = '保存';
+      close();
+      sendInitPrompt();
+    });
+  });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 }
 
 async function fillAiStudioSystemInstructions(prompt: string) {

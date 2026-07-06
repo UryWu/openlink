@@ -10,83 +10,124 @@
 
 让网页版 AI（Gemini、AI Studio）直接访问你的本地文件系统和执行命令。
 
+## 三组件架构
+
+项目由三个独立组件组成，请勿混淆：
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  1. Chrome 扩展 (extension/)                             │
+│     拦截 AI 网页输出的 <tool> 标签，转发给后端           │
+│     运行在浏览器中，自动工作 —— 用户看不到它             │
+│     必须手动加载到 Chrome                                 │
+├─────────────────────────────────────────────────────────┤
+│  2. FastAPI 后端 (backend/)                              │
+│     接收扩展的请求，执行文件操作和命令                    │
+│     运行在本地终端，localhost:39527                       │
+├─────────────────────────────────────────────────────────┤
+│  3. Vue 管理面板 (frontend/)                              │
+│     在浏览器中管理服务器的 Web 页面                       │
+│     打开 http://127.0.0.1:39527/app/ 使用               │
+│     可选 —— 不影响核心功能                                │
+└─────────────────────────────────────────────────────────┘
+```
+
+| 组件 | 目录 | 做什么 | 必须吗 | 怎么启动 |
+|------|------|--------|--------|----------|
+| **Chrome 扩展** | `extension/` | 拦截 AI 网页的工具调用，转发给后端 | ✅ 必须 | 手动加载到 Chrome |
+| **FastAPI 后端** | `backend/` | 执行工具、文件操作、沙盒隔离 | ✅ 必须 | `start.bat` 或命令行 |
+| **Vue 管理面板** | `frontend/` | 浏览器管理界面（文件浏览、工具控制台等） | ❌ 可选 | 后端自动 Serve 在 `/app/` |
+
+**关键区别**：
+
+- **Chrome 扩展 ≠ 管理面板**。扩展是自动在 AI 网页里工作的，不需要你打开任何页面。管理面板是你主动访问的一个网页，用来查看服务器状态、手动执行工具等。
+- **扩展还在**，迁移后保留完整功能（content script / injected script / background script），只是去掉了原来用 React 写的 popup 弹窗。扩展对用户是透明的。
+
 ## 工作原理
 
 ```
-AI 网页 → 输出 <tool> 指令 → Chrome 扩展拦截 → 本地 Go 服务执行 → 结果返回 AI
+AI 网页 → 输出 <tool> 指令 → Chrome 扩展拦截 → 本地 FastAPI 服务执行 → 结果返回 AI
 ```
 
 ## 快速安装
 
 ### 第一步：安装本地服务
 
-**macOS / Linux**
+**要求**：Python >= 3.12，[uv](https://docs.astral.sh/uv/) 包管理器。
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/betgar/openlink/main/install.sh | sh
+git clone https://github.com/betgar/openlink.git
+cd openlink/backend
+
+# 安装依赖
+uv sync
+
+# 启动服务器（当前目录为工作区）
+uv run openlink -dir /your/workspace -port 39527
+
+# 或直接通过 Python 启动
+uv run python -m app.main -dir /your/workspace
 ```
 
-**Windows（PowerShell）**
+服务默认监听 `http://127.0.0.1:39527`。首次运行会自动在 `~/.openlink/settings.json` 中生成认证 token。
 
-```powershell
-irm https://raw.githubusercontent.com/betgar/openlink/main/install.ps1 | iex
-```
-
-安装完成后运行：
-
-```bash
-openlink
-```
-
-服务默认监听 `http://127.0.0.1:39527`，启动后会输出认证 URL。
+一键启动（Windows）：双击仓库根目录的 `start.bat`。
 
 ### 第二步：安装 Chrome 扩展
 
-> Chrome Web Store 版本即将上线，目前请手动安装。
+```bash
+cd extension
+npm install
+npm run build
+```
 
-1. 下载最新 [Release](https://github.com/betgar/openlink/releases/latest) 中的 `extension.zip` 并解压
-2. 打开 Chrome，访问 `chrome://extensions/`
-3. 开启右上角「开发者模式」
-4. 点击「加载已解压的扩展程序」，选择解压后的目录
+1. 打开 Chrome，访问 `chrome://extensions/`
+2. 开启右上角「开发者模式」
+3. 点击「加载已解压的扩展程序」，选择 `extension/dist/` 目录
 
-### 第三步：连接扩展与服务
+### 第三步：开始使用
 
-1. 点击浏览器工具栏中的 OpenLink 图标
-2. 将终端输出的认证 URL 粘贴到「API 地址」输入框
-3. 点击保存
+访问 [Gemini](https://gemini.google.com) 或 [AI Studio](https://aistudio.google.com)，点击页面右下角的「🔗 初始化」按钮。
 
-### 第四步：开始使用
+如果提示「请先配置 API 地址」，点 ⚙️ 齿轮：
+- API 地址：`http://127.0.0.1:39527`
+- Token：从 `~/.openlink/settings.json` 复制 `token` 字段
 
-访问 [Gemini](https://gemini.google.com) 或 [AI Studio](https://aistudio.google.com)，点击页面右下角的「🔗 初始化」按钮，AI 即可开始使用本地工具。
+### （可选）管理面板
+
+```bash
+cd frontend
+npm install
+npm run dev       # 开发模式（Vite 热更新）
+npm run build     # 生产构建，由 FastAPI 自动 Serve 于 /app/
+```
+
+构建后访问 `http://127.0.0.1:39527/app/` 打开管理面板。
 
 ---
 
 ## 推荐平台
 
 > **目前测试效果最佳的平台是 [Google AI Studio](https://aistudio.google.com)**
->
-> AI Studio 原生支持配置系统提示词（System Instructions），点击「🔗 初始化」后会自动将工具说明写入系统提示词，无需占用对话上下文，工具调用更稳定、更准确。
->
-> 其他平台通过对话消息注入提示词，效果因模型而异。
 
 ## 支持的 AI 平台
 
-| 平台 | 状态 | 备注 |
-|------|------|------|
-| Google AI Studio | ✅ | 推荐，原生支持系统提示词 |
-| Google Gemini | ✅ | |
-| ChatGPT | ✅ | |
-| Grok | ✅ | |
-| Kimi | ✅ | |
-| Mistral | ✅ | |
-| Perplexity | ✅ | |
-| OpenRouter | ✅ | |
-| 通义千问 | ✅ | |
-| t3.chat | ✅ | |
-| GitHub Copilot | ✅ | |
-| z.ai | ✅ | |
-| Arena.ai | ✅ | |
-| DeepSeek | ✅ | 默认回退平台 |
+| 平台 | fillMethod | useObserver | 备注 |
+|------|-----------|-------------|------|
+| Google AI Studio | value | true | 推荐，原生支持系统提示词 |
+| Google Gemini | execCommand | true | |
+| ChatGPT | prosemirror | true | |
+| 通义千问 | value | true | |
+| DeepSeek | paste | false | |
+| Kimi | execCommand | false | |
+| Mistral | execCommand | false | |
+| Perplexity | execCommand | false | |
+| Grok | value | false | |
+| GitHub Copilot | value | false | |
+| z.ai | value | false | |
+| Arena.ai | value | true | |
+| OpenRouter | value | false | |
+| t3.chat | value | false | |
 
 ---
 
@@ -99,86 +140,33 @@ openlink
 | `read_file` | 读取文件内容（支持分页） |
 | `write_file` | 写入文件内容（支持追加/覆盖） |
 | `glob` | 按文件名模式搜索文件 |
-| `grep` | 正则搜索文件内容 |
-| `edit` | 精确替换文件中的字符串 |
-| `web_fetch` | 获取网页内容 |
+| `grep` | 正则搜索文件内容（优先 rg，回退 re） |
+| `edit` | 精确替换文件中的字符串（10 策略级联） |
+| `web_fetch` | 获取网页内容（SSRF 防护） |
 | `question` | 向用户提问并等待回答 |
-| `skill` | 加载自定义 Skill |
-| `todo_write` | 写入待办事项 |
+| `skill` | 加载/列出 Skills |
+| `todo_write` | 写入 .todos.json |
 
-## 输入框快捷补全
+## API 端点
 
-在任意支持的 AI 平台输入框中，OpenLink 提供两种快捷触发：
-
-| 触发方式 | 效果 |
-|----------|------|
-| 输入 `/` | 弹出当前项目所有 Skills 列表，选择后自动插入工具调用 XML |
-| 输入 `@` | 弹出工作目录文件路径补全列表，选择后插入文件路径 |
-
-**操作方式：**
-- ↑ / ↓ 键盘导航
-- Enter 确认选择
-- Escape 或点击外部关闭
-
----
-
-## Skills 扩展
-
-Skills 是放在本地的 Markdown 文件，AI 可以按需加载，用于扩展特定领域的能力（如部署流程、代码规范、项目约定等）。
-
-### Skills 目录（按优先级）
-
-OpenLink 会依次扫描以下目录，同名 Skill 以先找到的为准：
-
-```
-<工作目录>/.skills/
-<工作目录>/.openlink/skills/
-<工作目录>/.agent/skills/
-<工作目录>/.claude/skills/
-~/.openlink/skills/
-~/.agent/skills/
-~/.claude/skills/
-```
-
-### 创建 Skill
-
-在任意 Skills 目录下创建子目录，并在其中放置 `SKILL.md`：
-
-```
-.skills/
-└── deploy/
-    └── SKILL.md
-```
-
-`SKILL.md` 格式：
-
-```markdown
----
-name: deploy
-description: 项目部署流程
----
-
-## 部署步骤
-...
-```
-
-AI 通过 `skill` 工具加载：
-
-```
-<tool name="skill">
-  <parameter name="skill">deploy</parameter>
-</tool>
-```
-
----
+| 方法 | 路径 | 认证 | 说明 |
+|------|------|------|------|
+| GET | `/health` | 否 | 服务器状态 |
+| GET | `/config` | 是 | 当前配置 |
+| GET | `/prompt` | 是 | 初始化提示词 |
+| GET | `/tools` | 是 | 已注册工具列表 |
+| GET | `/skills` | 是 | 可用技能列表 |
+| GET | `/files?q=` | 是 | 文件搜索（最多 50 条） |
+| POST | `/exec` | 是 | 执行工具调用 |
+| POST | `/auth` | 是 | 验证 token |
 
 ## 安全机制
 
-- **沙箱隔离**：所有文件操作限制在指定工作目录内
-- **危险命令拦截**：`rm -rf`、`sudo`、`curl` 等命令被屏蔽
-- **超时控制**：命令执行默认 60 秒超时
-
----
+- **沙箱隔离**：所有文件操作限制在工作目录内，路径穿越通过 `os.path.realpath()` 阻止
+- **危险命令拦截**：`rm -rf`、`sudo`、`curl`、`mkfs`、`reboot` 等命令被屏蔽
+- **Token 认证**：所有 API 端点受 Bearer token 保护（`secrets.compare_digest` 常数时间比较）
+- **超时控制**：命令执行默认 60 秒超时，超时后进程终止
+- **SSRF 防护**：`web_fetch` 阻止对私有 IP 段的请求
 
 ## 命令行参数
 
@@ -193,17 +181,9 @@ openlink [选项]
 
 ---
 
-## 从源码构建
-
-详见 [docs/development.md](docs/development.md)
-
----
-
 ## 问题反馈
 
 [提交 Issue](https://github.com/betgar/openlink/issues)
-
----
 
 ## 致谢
 
@@ -212,10 +192,6 @@ openlink [选项]
 - [opencode](https://github.com/anomalyco/opencode)
 - [MCP-SuperAssistant](https://github.com/srbhptl39/MCP-SuperAssistant)
 - [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code)
-
-感谢这些项目的作者和贡献者。
-
----
 
 ## 免责声明
 

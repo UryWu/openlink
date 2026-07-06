@@ -1,35 +1,82 @@
 $ErrorActionPreference = "Stop"
 
-$REPO = "betgar/openlink"
-$BIN = "openlink"
-$INSTALL_DIR = "$env:USERPROFILE\.openlink"
+Write-Host "=========================================" -ForegroundColor Cyan
+Write-Host "  openlink 安装脚本" -ForegroundColor Cyan
+Write-Host "=========================================" -ForegroundColor Cyan
+Write-Host ""
 
-$ARCH = if ([Environment]::Is64BitOperatingSystem) { "amd64" } else { "386" }
+# ── Check prerequisites ──────────────────────────────────────────────────
 
-$response = Invoke-WebRequest -Uri "https://github.com/$REPO/releases/latest" -MaximumRedirection 0 -ErrorAction SilentlyContinue
-$VERSION = $response.Headers.Location -replace ".*/tag/", ""
-if (-not $VERSION) { Write-Error "获取版本失败"; exit 1 }
-
-$FILE = "${BIN}_windows_${ARCH}.zip"
-$URL = "https://github.com/$REPO/releases/download/$VERSION/$FILE"
-
-Write-Host "正在安装 openlink $VERSION (windows/$ARCH)..."
-
-New-Item -ItemType Directory -Force -Path $INSTALL_DIR | Out-Null
-$TMP = Join-Path $env:TEMP "openlink_install"
-New-Item -ItemType Directory -Force -Path $TMP | Out-Null
-
-Invoke-WebRequest -Uri $URL -OutFile "$TMP\openlink.zip"
-Expand-Archive -Path "$TMP\openlink.zip" -DestinationPath $TMP -Force
-Move-Item -Force "$TMP\$BIN.exe" "$INSTALL_DIR\$BIN.exe"
-Remove-Item -Recurse -Force $TMP
-
-# 添加到用户 PATH
-$path = [Environment]::GetEnvironmentVariable("PATH", "User")
-if ($path -notlike "*$INSTALL_DIR*") {
-    [Environment]::SetEnvironmentVariable("PATH", "$path;$INSTALL_DIR", "User")
-    Write-Host "已添加 $INSTALL_DIR 到 PATH（重新打开终端生效）"
+function Check-Cmd {
+    param($Name, $Test)
+    try {
+        $null = Invoke-Expression $Test 2>$null
+        Write-Host "✅ $Name" -ForegroundColor Green
+        return $true
+    } catch {
+        Write-Host "❌ 缺少依赖: $Name — 请先安装" -ForegroundColor Red
+        return $false
+    }
 }
 
-Write-Host "安装完成: $INSTALL_DIR\$BIN.exe"
-Write-Host "运行 'openlink' 启动服务"
+$hasPython = Check-Cmd "Python" "python --version"
+$hasUV = Check-Cmd "uv" "uv --version"
+$hasNpm = Check-Cmd "npm" "npm --version"
+
+if (-not $hasPython) { Write-Error "需要 Python >= 3.12"; exit 1 }
+if (-not $hasUV) { Write-Error "需要 uv 包管理器: https://docs.astral.sh/uv/"; exit 1 }
+
+# ── Backend ──────────────────────────────────────────────────────────────
+
+Write-Host ""
+Write-Host "── 安装后端依赖 ──" -ForegroundColor Yellow
+Set-Location backend
+uv sync
+Write-Host "✅ 后端依赖安装完成" -ForegroundColor Green
+
+# ── Extension ────────────────────────────────────────────────────────────
+
+Write-Host ""
+Write-Host "── 构建 Chrome 扩展 ──" -ForegroundColor Yellow
+Set-Location ../extension
+if ($hasNpm) {
+    npm install
+    npm run build
+    Write-Host "✅ 扩展构建完成 → extension/dist/" -ForegroundColor Green
+} else {
+    Write-Host "⚠️  未找到 npm，跳过扩展构建" -ForegroundColor Yellow
+    Write-Host "   安装 Node.js 后运行: cd extension && npm install && npm run build"
+}
+
+# ── Frontend (optional) ──────────────────────────────────────────────────
+
+Write-Host ""
+Write-Host "── 构建管理面板（可选）──" -ForegroundColor Yellow
+Set-Location ../frontend
+if ($hasNpm) {
+    npm install
+    npm run build
+    Write-Host "✅ 管理面板构建完成 → 访问 http://127.0.0.1:39527/app/" -ForegroundColor Green
+} else {
+    Write-Host "⚠️  跳过管理面板（需要 Node.js）" -ForegroundColor Yellow
+}
+
+Set-Location ..
+
+# ── Done ─────────────────────────────────────────────────────────────────
+
+Write-Host ""
+Write-Host "=========================================" -ForegroundColor Cyan
+Write-Host "  安装完成！" -ForegroundColor Cyan
+Write-Host "=========================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "启动服务器：" -ForegroundColor Yellow
+Write-Host "  cd backend && uv run openlink -dir /your/workspace"
+Write-Host ""
+Write-Host "加载 Chrome 扩展：" -ForegroundColor Yellow
+Write-Host "  1. 打开 chrome://extensions/"
+Write-Host "  2. 启用「开发者模式」"
+Write-Host "  3. 加载 extension/dist/ 目录"
+Write-Host ""
+Write-Host "启动管理面板（开发模式）：" -ForegroundColor Yellow
+Write-Host "  cd frontend && npm run dev"

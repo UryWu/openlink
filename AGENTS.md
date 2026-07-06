@@ -1,20 +1,15 @@
-# AGENTS.md - Development Guide for openlink
+# AGENTS.md — openlink Development Guide
 
 ## Build & Run Commands
 
-### Go Server
+### FastAPI Server
 ```bash
-# Run server (default: port 39527, current dir)
-go run cmd/server/main.go
+cd backend
+uv sync
+uv run openlink -dir /path/to/workspace -port 39527
 
-# Run with custom options
-go run cmd/server/main.go -dir=/path/to/workspace -port=39527 -timeout=60
-
-# Build binary
-go build -o openlink cmd/server/main.go
-
-# Run binary
-./openlink -dir=/your/workspace -port=39527
+# Or directly
+uv run python -m app.main -dir /path/to/workspace -port 39527
 ```
 
 ### Chrome Extension
@@ -25,25 +20,18 @@ npm run build    # outputs to extension/dist/
 npm run dev      # watch mode
 ```
 
+### Vue Frontend
+```bash
+cd frontend
+npm install
+npm run dev      # dev server (port 5173)
+npm run build    # production build → frontend/dist/
+```
+
 ### Testing
 ```bash
-# Run all tests
-go test ./...
-
-# Run single package tests
-go test ./internal/tool/...
-
-# Run single test function
-go test -run TestExecCmdValidate ./internal/tool/
-
-# Run tests with verbose output
-go test -v ./internal/security/...
-
-# Run tests with coverage
-go test -cover ./...
-
-# Run specific test file
-go test -run TestExecCmdValidate -v ./internal/tool/exec_cmd_test.go
+cd backend
+uv run pytest
 ```
 
 ### Verification
@@ -51,98 +39,58 @@ go test -run TestExecCmdValidate -v ./internal/tool/exec_cmd_test.go
 # Check server health
 curl http://127.0.0.1:39527/health
 
-# List tools
-curl http://127.0.0.1:39527/tools -H "Authorization: Bearer <token>"
+# List tools (with auth)
+TOKEN=$(python -c "import json; print(json.load(open('$HOME/.openlink/settings.json'))['token'])")
+curl http://127.0.0.1:39527/tools -H "Authorization: Bearer $TOKEN"
 ```
 
 ### Scripts
 ```bash
-# Build & deploy extension
-./scripts/deploy-extension.sh
-
-# Run platform-specific tests
-./scripts/test-platform.sh
+./scripts/build.sh all          # Build extension + frontend
+./scripts/deploy-extension.sh   # Package extension for deployment
 ```
 
 ## Code Style Guidelines
 
-### Imports
-- Standard library imports first, blank line, then external packages
-- Group imports in parentheses, alphabetically sorted within each group
-- Use relative imports within the module: `github.com/betgar/openlink/internal/...`
+### Python (Backend)
+- Follow PEP 8
+- Use `from __future__ import annotations` for forward references
+- Type hints on all function signatures
+- Abstract base classes for tool definitions (`BaseTool`)
+- `async def` for I/O-heavy endpoints
+- Pydantic models with `model_validator` for field normalization
+- Use `os.path.realpath()` for symlink resolution in security checks
 
-```go
-import (
-    "errors"
-    "fmt"
-    "os"
+### TypeScript (Extension)
+- Strict mode enabled
+- Use `interface` for data shapes, `type` for unions
+- Async/await for all API calls
+- Match existing code style in `extension/src/content/index.ts`
+- No React — content script uses vanilla DOM manipulation
 
-    "github.com/gin-gonic/gin"
-)
-```
-
-### Formatting
-- Run `gofmt -w .` before committing
-- Line length: no hard limit, but prefer <120 chars for readability
-- Use tabs for indentation (Go standard)
+### Vue 3 (Frontend)
+- Composition API with `<script setup lang="ts">`
+- Pinia stores with composable pattern
+- Scoped CSS with CSS variables from dark theme
+- Lazy-loaded route components
 
 ### Naming Conventions
-- **Types**: PascalCase (e.g., `ToolRequest`, `Config`)
-- **Functions**: PascalCase for exported, camelCase for private (e.g., `SafePath`, `normalizeLineEndings`)
-- **Variables**: camelCase, descriptive names (e.g., `absTarget`, `replaceAll`)
-- **Constants**: camelCase or PascalCase based on visibility
-- **Files**: snake_case matching package name (e.g., `exec_cmd.go`, `read_file.go`)
-
-### Types & Interfaces
-- Use pointer receivers for methods that mutate state
-- Define interfaces where behavior needs abstraction (see `Tool` interface in `tool.go`)
-- Use `map[string]interface{}` for dynamic JSON args
-- Struct tags: use `json:"name"` with standard naming
+- **Python**: `snake_case` for functions/variables, `PascalCase` for classes
+- **Python files**: `snake_case.py`
+- **TypeScript**: `camelCase` for variables/functions, `PascalCase` for types/components
+- **Vue files**: `PascalCase.vue` for components
 
 ### Error Handling
-- Return errors as the last return value
-- Check errors immediately after the call
-- Use `errors.New()` for simple errors, `fmt.Errorf()` for formatted errors
-- Include context in error messages when helpful
-- For HTTP handlers, return appropriate status codes and JSON error responses
-
-```go
-if err != nil {
-    result.Status = "error"
-    result.Error = err.Error()
-    return result
-}
-```
-
-### Comments & Documentation
-- Package comments: `// Package X provides...` at top of file
-- Exported functions/types: single-line doc comment starting with the name
-- Internal comments in English (code) or Chinese (internal notes) acceptable
-- Use `// ── Section ──` style for visual section separators in complex files
-
-### Testing
-- Test files: `<name>_test.go` in same package
-- Test function naming: `Test<Function><Scenario>` (e.g., `TestExecCmdValidate`)
-- Use `t.TempDir()` for temporary test directories
-- Use `t.Run()` for sub-tests
-- Test both success and failure cases
-
-```go
-func TestExecCmdValidate(t *testing.T) {
-    cfg := &types.Config{RootDir: t.TempDir(), Timeout: 10}
-    tool := NewExecCmdTool(cfg)
-
-    if err := tool.Validate(map[string]interface{}{"command": "ls"}); err != nil {
-        t.Errorf("expected valid: %v", err)
-    }
-}
-```
+- Backend: Return `ToolResult` with `status="error"` and descriptive error message
+- Extension: surface errors in tool card UI
+- Never expose internal paths or stack traces to client
 
 ### Security Patterns
-- Always validate file paths with `security.SafePath()` or `resolveAbsPath()`
-- Use `filepath.EvalSymlinks()` before path validation
-- Check dangerous commands with `security.IsDangerousCommand()`
-- Use constant-time comparison for token validation
+- Always validate file paths with `safe_path()` from `core/security/sandbox.py`
+- Always resolve symlinks before path validation
+- Use `is_dangerous_command()` before shell execution
+- Use `secrets.compare_digest()` for token comparison
+- SSRF protection in `web_fetch` — resolve host and check private IP ranges
 
 ### Git & Commits
 - Keep commits focused on single concerns
@@ -150,8 +98,8 @@ func TestExecCmdValidate(t *testing.T) {
 - No commits unless explicitly requested by user
 
 ## Architecture Notes
-- Server uses Gin framework for HTTP routing
-- All routes protected by token auth middleware
+- Server uses FastAPI with lifespan context manager for startup/shutdown
 - CORS enabled for all origins (required for browser extension)
-- Tool execution uses context with timeout
-- Skills system loads `SKILL.md` files from multiple directories
+- Tool execution uses `asyncio.wait_for()` with timeout
+- Skills system loads `SKILL.md` files from 7 directories, deduplicates by name
+- Vue frontend mounted as static files at `/app/` with SPA fallback middleware

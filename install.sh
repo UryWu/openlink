@@ -1,36 +1,78 @@
 #!/bin/sh
 set -e
 
-REPO="betgar/openlink"
-BIN="openlink"
-INSTALL_DIR="/usr/local/bin"
+echo "========================================="
+echo "  openlink 安装脚本"
+echo "========================================="
+echo ""
 
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m)
-case "$ARCH" in
-  x86_64) ARCH="amd64" ;;
-  aarch64|arm64) ARCH="arm64" ;;
-  *) echo "不支持的架构: $ARCH"; exit 1 ;;
-esac
+# ── Check prerequisites ──────────────────────────────────────────────────
 
-VERSION=$(curl -fsSL -o /dev/null -w "%{url_effective}" "https://github.com/${REPO}/releases/latest" | sed 's|.*/tag/||')
-if [ -z "$VERSION" ]; then
-  echo "获取版本失败"; exit 1
-fi
+check_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "❌ 缺少依赖: $1 — 请先安装"
+    exit 1
+  fi
+}
 
-FILE="${BIN}_${OS}_${ARCH}.tar.gz"
-URL="https://github.com/${REPO}/releases/download/${VERSION}/${FILE}"
+check_cmd python3
+echo "✅ Python $(python3 --version 2>&1)"
 
-echo "正在安装 openlink ${VERSION} (${OS}/${ARCH})..."
-TMP=$(mktemp -d)
-curl -fsSL "$URL" | tar -xz -C "$TMP"
+check_cmd uv
+echo "✅ uv $(uv --version 2>&1)"
 
-if [ -w "$INSTALL_DIR" ]; then
-  mv "$TMP/$BIN" "$INSTALL_DIR/$BIN"
+# ── Backend ──────────────────────────────────────────────────────────────
+
+echo ""
+echo "── 安装后端依赖 ──"
+cd backend
+uv sync
+echo "✅ 后端依赖安装完成"
+
+# ── Extension ────────────────────────────────────────────────────────────
+
+echo ""
+echo "── 构建 Chrome 扩展 ──"
+cd ../extension
+if command -v npm >/dev/null 2>&1; then
+  npm install
+  npm run build
+  echo "✅ 扩展构建完成 → extension/dist/"
 else
-  sudo mv "$TMP/$BIN" "$INSTALL_DIR/$BIN"
+  echo "⚠️  未找到 npm，跳过扩展构建"
+  echo "   安装 Node.js 后运行: cd extension && npm install && npm run build"
 fi
-rm -rf "$TMP"
 
-echo "安装完成: $(which $BIN)"
-echo "运行 'openlink' 启动服务"
+# ── Frontend (optional) ──────────────────────────────────────────────────
+
+echo ""
+echo "── 构建管理面板（可选）──"
+cd ../frontend
+if command -v npm >/dev/null 2>&1; then
+  npm install
+  npm run build
+  echo "✅ 管理面板构建完成 → 访问 http://127.0.0.1:39527/app/"
+else
+  echo "⚠️  跳过管理面板（需要 Node.js）"
+fi
+
+cd ..
+
+# ── Done ─────────────────────────────────────────────────────────────────
+
+echo ""
+echo "========================================="
+echo "  安装完成！"
+echo "========================================="
+echo ""
+echo "启动服务器："
+echo "  cd backend && uv run openlink -dir /your/workspace"
+echo ""
+echo "加载 Chrome 扩展："
+echo "  1. 打开 chrome://extensions/"
+echo "  2. 启用「开发者模式」"
+echo "  3. 加载 extension/dist/ 目录"
+echo ""
+echo "启动管理面板（开发模式）："
+echo "  cd frontend && npm run dev"
+echo ""
