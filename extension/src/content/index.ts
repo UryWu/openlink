@@ -709,44 +709,65 @@ function showSettingsDialog() {
   ].join(';');
 
   overlay.innerHTML = `
-    <div id="openlink-settings-box" style="background:#1e1e1e;color:#e1e3ec;padding:24px;border-radius:12px;width:420px;max-width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.5);position:relative">
-      <div id="openlink-settings-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;cursor:grab;user-select:none">
+    <div id="openlink-settings-box" style="background:#1e1e1e;color:#e1e3ec;padding:24px;border-radius:12px;width:480px;max-width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.5);position:relative">
+      <div id="openlink-settings-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;cursor:grab;user-select:none">
         <h2 style="margin:0;font-size:18px;">OpenLink 设置</h2>
         <button id="openlink-settings-close" title="关闭" aria-label="关闭" style="padding:0;width:24px;height:24px;background:transparent;color:#9aa0a8;border:none;border-radius:4px;cursor:pointer;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;">×</button>
       </div>
-      <label style="display:block;margin-bottom:12px;font-size:13px;color:#9aa0a8;">
-        API 地址
-        <input id="openlink-url" type="text" placeholder="http://127.0.0.1:39527"
-          style="display:block;width:100%;margin-top:4px;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:13px;box-sizing:border-box">
-      </label>
-      <label style="display:block;margin-bottom:16px;font-size:13px;color:#9aa0a8;">
-        Token
-        <input id="openlink-token" type="password" placeholder="token"
-          style="display:block;width:100%;margin-top:4px;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:13px;box-sizing:border-box">
-      </label>
-      <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px;color:#9aa0a8;cursor:pointer;">
-        <input id="openlink-auto-execute" type="checkbox" style="margin:0;">
-        自动执行工具调用（无需手动点 "执行"）
-      </label>
-      <label style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:13px;color:#9aa0a8;cursor:pointer;">
-        <input id="openlink-auto-send" type="checkbox" style="margin:0;">
-        自动提交（取消勾选则填入 AI 输入框后需手动点发送）
-      </label>
-      <label style="display:block;margin-bottom:16px;font-size:13px;color:#9aa0a8;">
-        自动提交延迟区间 (秒)
-        <div style="display:flex;gap:8px;margin-top:4px;">
-          <input id="openlink-delay-min" type="number" step="0.1" min="0" placeholder="最小 (x)"
-            style="flex:1;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:13px;box-sizing:border-box">
-          <input id="openlink-delay-max" type="number" step="0.1" min="0" placeholder="最大 (y)"
-            style="flex:1;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:13px;box-sizing:border-box">
+      <div id="openlink-settings-tabs" style="display:flex;gap:0;margin-bottom:16px;border-bottom:1px solid #2a2d3a">
+        <button class="openlink-tab openlink-tab-active" data-tab="settings" style="padding:8px 16px;background:transparent;color:#fff;border:none;border-bottom:2px solid #1677ff;cursor:pointer;font-size:13px;font-weight:500;margin-bottom:-1px">设置</button>
+        <button class="openlink-tab" data-tab="tool" style="padding:8px 16px;background:transparent;color:#9aa0a8;border:none;border-bottom:2px solid transparent;cursor:pointer;font-size:13px;font-weight:500;margin-bottom:-1px">工具命令</button>
+      </div>
+
+      <div class="openlink-panel" data-panel="settings" style="display:block">
+        <label style="display:block;margin-bottom:12px;font-size:13px;color:#9aa0a8;">
+          API 地址
+          <input id="openlink-url" type="text" placeholder="http://127.0.0.1:39527"
+            style="display:block;width:100%;margin-top:4px;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:13px;box-sizing:border-box">
+        </label>
+        <label style="display:block;margin-bottom:16px;font-size:13px;color:#9aa0a8;">
+          Token
+          <input id="openlink-token" type="password" placeholder="token"
+            style="display:block;width:100%;margin-top:4px;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:13px;box-sizing:border-box">
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px;color:#9aa0a8;cursor:pointer;">
+          <input id="openlink-auto-execute" type="checkbox" style="margin:0;">
+          自动执行工具调用（无需手动点 "执行"）
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:13px;color:#9aa0a8;cursor:pointer;">
+          <input id="openlink-auto-send" type="checkbox" style="margin:0;">
+          自动提交（取消勾选则填入 AI 输入框后需手动点发送）
+        </label>
+        <label style="display:block;margin-bottom:16px;font-size:13px;color:#9aa0a8;">
+          自动提交延迟区间 (秒)
+          <div style="display:flex;gap:8px;margin-top:4px;">
+            <input id="openlink-delay-min" type="number" step="0.1" min="0" placeholder="最小 (x)"
+              style="flex:1;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:13px;box-sizing:border-box">
+            <input id="openlink-delay-max" type="number" step="0.1" min="0" placeholder="最大 (y)"
+              style="flex:1;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:13px;box-sizing:border-box">
+          </div>
+          <div style="margin-top:4px;font-size:11px;color:#6b7280;">每次触发时在 x 与 y 之间随机取一个秒数</div>
+        </label>
+        <div style="display:flex;gap:8px;justify-content:space-between;align-items:center">
+          <button id="openlink-cancel" style="padding:8px 16px;background:transparent;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;cursor:pointer;">取消</button>
+          <div style="display:flex;gap:8px;">
+            <button id="openlink-save" style="padding:8px 16px;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;">保存</button>
+            <button id="openlink-init-from-dialog" title="先保存当前设置, 再向 AI 发送系统提示词" style="padding:8px 16px;background:#1e1e2e;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;cursor:pointer;font-size:13px;">初始化</button>
+          </div>
         </div>
-        <div style="margin-top:4px;font-size:11px;color:#6b7280;">每次触发时在 x 与 y 之间随机取一个秒数</div>
-      </label>
-      <div style="display:flex;gap:8px;justify-content:space-between;align-items:center">
-        <button id="openlink-cancel" style="padding:8px 16px;background:transparent;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;cursor:pointer;">取消</button>
-        <div style="display:flex;gap:8px;">
-          <button id="openlink-save" style="padding:8px 16px;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;">保存</button>
-          <button id="openlink-init-from-dialog" title="先保存当前设置, 再向 AI 发送系统提示词" style="padding:8px 16px;background:#1e1e2e;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;cursor:pointer;font-size:13px;">初始化</button>
+      </div>
+
+      <div class="openlink-panel" data-panel="tool" style="display:none">
+        <div style="font-size:13px;color:#9aa0a8;margin-bottom:6px">在下方输入或粘贴工具调用 XML，提交后直接 POST <code style="font-size:12px">/exec</code>，结果回显在此框内。</div>
+        <textarea id="openlink-tool-input" placeholder='&lt;tool name="list_dir"&gt;\n  &lt;parameter name="path"&gt;.&lt;/parameter&gt;\n&lt;/tool&gt;'
+          style="width:100%;height:160px;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:12px;box-sizing:border-box;resize:vertical;outline:none"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="openlink-tool-execute" style="flex:1;padding:8px 16px;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">执行</button>
+          <button id="openlink-tool-clear" style="padding:8px 16px;background:transparent;color:#9aa0a8;border:1px solid #2a2d3a;border-radius:6px;cursor:pointer;font-size:13px">清空</button>
+        </div>
+        <div id="openlink-tool-result-wrap" style="display:none;margin-top:12px">
+          <div style="font-size:11px;color:#6b7280;margin-bottom:4px">结果：</div>
+          <pre id="openlink-tool-result" style="margin:0;padding:10px;background:#0f1117;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:240px;overflow-y:auto;color:#cdd6f4"></pre>
         </div>
       </div>
     </div>
@@ -816,6 +837,62 @@ function showSettingsDialog() {
     const ok = await saveSettings();
     if (!ok) return;
     close();
+  });
+
+  // ── Tab switching ──
+  overlay.querySelectorAll<HTMLButtonElement>('.openlink-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.tab;
+      overlay.querySelectorAll<HTMLButtonElement>('.openlink-tab').forEach((t) => {
+        const active = t === tab;
+        t.classList.toggle('openlink-tab-active', active);
+        (t as HTMLElement).style.color = active ? '#fff' : '#9aa0a8';
+        (t as HTMLElement).style.borderBottomColor = active ? '#1677ff' : 'transparent';
+      });
+      overlay.querySelectorAll<HTMLElement>('.openlink-panel').forEach((p) => {
+        p.style.display = p.dataset.panel === target ? 'block' : 'none';
+      });
+    });
+  });
+
+  // ── Tool command panel ──
+  // Parse the XML the user typed, then POST /exec directly (bypassing the
+  // auto-fill-AI-editor flow). Result is rendered into the dialog.
+  document.getElementById('openlink-tool-execute')!.addEventListener('click', async () => {
+    const raw = (document.getElementById('openlink-tool-input') as HTMLTextAreaElement).value.trim();
+    const resultBox = document.getElementById('openlink-tool-result')!;
+    const resultWrap = document.getElementById('openlink-tool-result-wrap')!;
+    const execBtn = document.getElementById('openlink-tool-execute') as HTMLButtonElement;
+    if (!raw) {
+      resultWrap.style.display = 'block';
+      resultBox.textContent = '⚠ 请输入工具调用 XML';
+      resultBox.style.color = '#fbbf24';
+      return;
+    }
+    execBtn.disabled = true;
+    execBtn.textContent = '执行中...';
+    try {
+      // normalize \" → " so pasted-from-source XML parses
+      const normalized = raw.replace(/\\"/g, '"');
+      const toolCall = parseXmlToolCall(normalized);
+      if (!toolCall) {
+        resultWrap.style.display = 'block';
+        resultBox.textContent = '⚠ 无法解析工具调用 XML，请检查格式\n\n原始输入：\n' + raw;
+        resultBox.style.color = '#fbbf24';
+        return;
+      }
+      const result = await executeToolCallRaw(toolCall);
+      resultWrap.style.display = 'block';
+      resultBox.style.color = result.startsWith('[OpenLink') || result.includes('错误') ? '#f87171' : '#a6e3a1';
+      resultBox.textContent = result;
+    } finally {
+      execBtn.disabled = false;
+      execBtn.textContent = '执行';
+    }
+  });
+  document.getElementById('openlink-tool-clear')!.addEventListener('click', () => {
+    (document.getElementById('openlink-tool-input') as HTMLTextAreaElement).value = '';
+    document.getElementById('openlink-tool-result-wrap')!.style.display = 'none';
   });
 
   // Shared save logic — returns true on success, false on validation failure.
