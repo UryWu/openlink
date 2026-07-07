@@ -3,9 +3,14 @@
 # Mirrors the old start.bat but avoids cmd.exe's CRLF / pushd / multi-line
 # if-else quirks. Use:
 #   .\start.ps1                                # workspace = openlink repo root
+#   .\start.ps1 D:\my-project                  # positional workspace arg (shorthand)
 #   .\start.ps1 -Workspace D:\my-project       # AI helpers only see this dir
 #   .\start.ps1 -Workspace 'D:\my project'     # spaces are fine
 #   .\start.ps1 -Port 40000                    # custom port
+#
+# IMPORTANT: pass the workspace path from PowerShell. When this script is
+# invoked from cmd.exe, the path argument is dropped, so the root directory
+# falls back to the current path.
 #
 # Side note: there is no `openlink` console script in pyproject.toml anymore.
 # The working command is always `uv run python -m app.main -dir <workspace>`.
