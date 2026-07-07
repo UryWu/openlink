@@ -709,7 +709,7 @@ function showSettingsDialog() {
   ].join(';');
 
   overlay.innerHTML = `
-    <div id="openlink-settings-box" style="background:#1e1e1e;color:#e1e3ec;padding:24px;border-radius:12px;width:480px;max-width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.5);position:relative">
+    <div id="openlink-settings-box" style="background:#1e1e1e;color:#e1e3ec;padding:24px;border-radius:12px;width:480px;max-width:90%;min-width:360px;min-height:280px;box-shadow:0 8px 32px rgba(0,0,0,0.5);position:relative;resize:both;overflow:auto">
       <div id="openlink-settings-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;cursor:grab;user-select:none">
         <h2 style="margin:0;font-size:18px;">OpenLink 设置</h2>
         <button id="openlink-settings-close" title="关闭" aria-label="关闭" style="padding:0;width:24px;height:24px;background:transparent;color:#9aa0a8;border:none;border-radius:4px;cursor:pointer;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;">×</button>
