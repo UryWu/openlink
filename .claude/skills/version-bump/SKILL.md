@@ -50,7 +50,6 @@ This skill carries copies of three files for self-containment; **the project can
 
 - `scripts/bump_version.sh` — bundled bash bump driver. For execution, use the project copy at `<project>/scripts/bump_version.sh`; this copy is a reference snapshot.
 - `scripts/bump_version.ps1` — bundled PowerShell bump driver. Same pattern, PS-cased param names (`-Backend` not `--backend`).
-- `references/version-bumping.md` — bundled long-form docs (lockfile rationale, SemVer judgment, full release flow).
 
 ## When to invoke
 
@@ -149,22 +148,134 @@ git push origin main
 git push origin v1.2.0                     # always push tag and main in the same batch
 ```
 
-Optional but recommended — make the GitHub/GitLab Release page actually show the new section:
-```bash
-gh release view v1.2.0 --repo <owner>/<repo> --json body,isDraft,publishedAt
-# If body is empty / stale / release missing, recreate:
-sed -n '/^## \[1\.2\.0\]/,/^## \[/p' CHANGELOG.md | sed '$d' > /tmp/v1.2.0-notes.md
-gh release create v1.2.0 --draft \
-  --title "v1.2.0" \
-  --notes-file /tmp/v1.2.0-notes.md \
-  --repo <owner>/<repo>
-gh release edit v1.2.0 --draft=false --repo <owner>/<repo>   # publish
+## Publish: GitHub Release
+
+After `git push origin main && git push origin vX.Y.Z` succeed, before declaring done, **publish the GitHub Release page** so the new version's CHANGELOG section is visible to consumers browsing the repo.
+
+### Step 0: Ask user for PAT configuration
+
+Before any token discovery, **always ask the user** which option applies — do not assume. Use `AskUserQuestion`:
+
+> **Question**: "How is your GitHub PAT configured for publishing releases?"
+>
+> **Options**:
+> 1. **Stored in `~/.claude.json`** — search the file for any key containing a GitHub PAT and report the matches (let user pick which one to use).
+> 2. **In environment variable** — ask the user for the variable name (e.g. `GH_TOKEN`) holding the PAT.
+> 3. **User pastes it in chat** — user provides the PAT directly in the response (will be lost after session ends — use option 1 or 2 for persistence).
+> 4. **Not configured** — skip publishing; tell the user to publish via the GitHub web UI manually.
+
+Stop here if option 4 is chosen — the rest of this section does not apply.
+
+### Step 1: Discover the PAT
+
+For **option 1** (`~/.claude.json`):
+
+- Recursively scan the JSON tree for any string matching `github_pat_[A-Za-z0-9_]+`.
+- For each match, report the **full JSON path** to the key (e.g. `projects['G:/foo'].mcpServers.github.headers.Authorization`).
+- **Critical extraction gotcha**: PATs are often embedded inside other JSON values (e.g. an `mcpServers.github.command` string that wraps a JSON config). Naive split by space will pick up trailing JSON artifacts like `}}'` and break auth. Always extract with a character-class regex:
+  ```python
+  import re
+  m = re.search(r'(github_pat_[A-Za-z0-9_]+)', value)
+  token = m.group(1) if m else None
+  ```
+  Do NOT use `value.split(' ', 1)[1]` or `\S+` — both leak surrounding punctuation.
+
+For **option 2** (env var): `os.environ[<user_provided_name>]`. If the variable is empty/unset, stop and report.
+
+### Step 2: Validate the token
+
+Before publishing, run a cheap auth check:
+
+```python
+import urllib.request
+req = urllib.request.Request(
+    'https://api.github.com/user',
+    headers={'Authorization': f'Bearer {token}', 'Accept': 'application/vnd.github+json'},
+)
+with urllib.request.urlopen(req) as resp:
+    body = json.loads(resp.read())
+    print('login:', body.get('login'))
 ```
+
+If HTTP **401** (`Bad credentials`), the token is **expired or revoked** — stop and tell the user to refresh the PAT. Do NOT retry.
+
+If HTTP **403** with "API rate limit exceeded" — wait a few minutes (unauthenticated requests are limited to 60/hour; authenticated to 5000/hour) and retry.
+
+### Step 3: Publish via API (preferred) or `gh` CLI
+
+**Preferred path: Python `urllib.request`** — avoids shell-escape issues with multilingual CHANGELOG content. `curl --data-binary` on Windows Git Bash can corrupt JSON containing `&&`, `<`, Chinese characters, etc. `gh release create --notes-file` on Windows has `/tmp` path issues (use repo-local paths instead).
+
+```python
+import json, re, urllib.request
+
+# 1) Extract new version's CHANGELOG section
+#    (between "## [X.Y.Z] - DATE" and the next "## [" heading)
+changelog = open('CHANGELOG.md', encoding='utf-8').read()
+m = re.search(
+    rf'## \[{version}\][^\n]*\n(.*?)(?=\n## \[|\Z)',
+    changelog,
+    re.DOTALL,
+)
+notes = m.group(1).strip() if m else ''
+
+# 2) Build payload
+payload = json.dumps({
+    'tag_name': f'v{version}',
+    'target_commitish': 'main',
+    'name': f'v{version}',
+    'body': notes,
+    'draft': False,
+    'prerelease': False,
+}, ensure_ascii=False).encode('utf-8')
+
+# 3) POST
+req = urllib.request.Request(
+    f'https://api.github.com/repos/{owner}/{repo}/releases',
+    data=payload,
+    method='POST',
+    headers={
+        'Authorization': f'Bearer {token}',
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json; charset=utf-8',
+        'X-GitHub-Api-Version': '2022-11-28',
+    },
+)
+try:
+    with urllib.request.urlopen(req) as resp:
+        body = json.loads(resp.read())
+        print(f'HTTP {resp.status}')
+        print(f'html_url: {body.get("html_url")}')
+        print(f'tag_name: {body.get("tag_name")}')
+except urllib.error.HTTPError as e:
+    print(f'HTTP {e.code} {e.reason}')
+    print(e.read().decode('utf-8'))
+```
+
+**Expected responses**:
+- **HTTP 201** — release created. Print the `html_url` so the user can click through.
+- **HTTP 400** (`Problems parsing JSON`) — payload corrupted, usually from shell escaping. Switch from `curl` to Python `urllib.request` (don't retry with curl).
+- **HTTP 401** — token rejected at publish time even though `/user` worked. Usually means token lacks `Contents: write` scope. Stop and tell the user.
+
+### Step 4: Clean up
+
+If you wrote notes to a temp file (e.g. `.release-notes.md` in repo root, or any file under `/tmp`), `rm` it after a successful 201 response. Do **NOT** commit it — it duplicates CHANGELOG content.
+
+**Alternative — `gh` CLI**: if the user prefers the official CLI and the path/encoding issues are not a concern:
+
+```bash
+gh release create vX.Y.Z \
+  --repo <owner>/<repo> \
+  --title "vX.Y.Z" \
+  --notes-file <path-to-notes>   # use repo-local path, NOT /tmp
+gh release view vX.Y.Z --repo <owner>/<repo>  # verify
+```
+
+But the Python API path is preferred for multilingual CHANGELOG content.
 
 ## Pitfalls
 
 - **Lockfile corruption** — never `sed s/1.1.1/1.2.0/g` over a lockfile (`uv.lock`, `package-lock.json`, `Cargo.lock`, etc.). It will turn a transitive dep's version into a nonexistent one and the next install command will 404. Always let the package manager regenerate (`uv lock`, `npm install`, `cargo generate-lockfile`, etc.).
-- **Missed file** — if you add a file carrying the version string, the script's grep verify will fail with "stale references". Update both the shell script's `COMPONENT_FILES[<component>]` and the PowerShell script's `Files = @(...)` array, then run `<project>/scripts/sync_skill_copies.sh` (if you have one) to push into the skill's bundled copies. See [`references/version-bumping.md`](references/version-bumping.md) §"加新文件时怎么同步".
+- **Missed file** — if you add a file carrying the version string, the script's grep verify will fail with "stale references". Update both the shell script's `COMPONENT_FILES[<component>]` and the PowerShell script's `Files = @(...)` array, then run `<project>/scripts/sync_skill_copies.sh` (if you have one) to push into the skill's bundled copies.
 - **Tag pushed later than main** — `git push origin main` without `git push origin vX.Y.Z` makes installs of the new tag fail. Always push both in the same batch.
 - **Bumping without CHANGELOG** — the GitHub Release body comes out empty or stale; downstream consumers won't know what changed.
 - **Pre-release versions** — the bundled script regex `^\d+\.\d+\.\d+$` rejects `1.2.0-beta.1`. If you need pre-release tags, relax the regex (in both shell and PowerShell scripts) or accept that this skill won't auto-handle it.
@@ -182,4 +293,4 @@ gh release edit v1.2.0 --draft=false --repo <owner>/<repo>   # publish
 
 ## Reference
 
-For deeper context — `lockfile` design rationale, full release flow, related helper scripts (build / deploy) — see [`references/version-bumping.md`](references/version-bumping.md).
+This skill ships in `scripts/bump_version.{sh,ps1}` (canonical) — edit those project copies, then run `<project>/scripts/sync_skill_copies.sh` to push into these bundled snapshots.
