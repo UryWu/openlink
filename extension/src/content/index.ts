@@ -462,18 +462,19 @@ function injectSettingsButton() {
       #openlink-buttons {
         position: fixed !important;
         z-index: 99999;
-        min-width: ${BTN_H}px; width: ${BTN_W}px; height: ${BTN_H}px;
+        min-width: ${BTN_H}px; width: auto; height: ${BTN_H}px;
         padding: 0 14px; box-sizing: border-box;
         background: #1677ff; color: #fff;
         border: none; border-radius: 18px;
-        cursor: grab; font-size: 13px;
+        cursor: grab; font-size: 12px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         user-select: none; -webkit-user-select: none;
-        display: flex; align-items: center; justify-content: center; gap: 6px;
+        display: inline-flex; align-items: center; justify-content: center; gap: 6px;
         white-space: nowrap; overflow: hidden;
         transition: width 0.22s cubic-bezier(0.4,0,0.2,1),
                     border-radius 0.22s,
-                    padding 0.22s;
+                    padding 0.22s,
+                    left 0.18s, top 0.18s;
       }
       #openlink-buttons.dragging { cursor: grabbing; transition: none; }
       #openlink-buttons .ol-icon { font-size: 14px; line-height: 1; display: inline-block; }
@@ -494,9 +495,14 @@ function injectSettingsButton() {
 
   document.body.appendChild(btn);
 
-  // ── State ──
+  // pos.x / pos.y = left-top corner of the BUTTON's bounding box. Auto-sized
+  // width means we measure the actual pill width after insertion — every snap
+  // / collapse calculation uses pillW so the math stays correct even if the
+  // text or icon changes later.
+  const pillW = btn.offsetWidth || BTN_W;
+
   const pos: BtnPos = {
-    x: window.innerWidth - BTN_W - 20,
+    x: window.innerWidth - pillW - 20,
     y: window.innerHeight - BTN_H - 80,
     edge: null,
     collapsed: false,
@@ -513,12 +519,29 @@ function injectSettingsButton() {
     btn.style.top = pos.y + 'px';
   }
 
+  // ── Position helpers ──
+  function setExpandedPosOnEdge(edge: 'left' | 'right' | 'top' | 'bottom') {
+    // Fully visible position when expanded and snapped to that edge.
+    if (edge === 'left')   pos.x = 0;
+    else if (edge === 'right')  pos.x = window.innerWidth - pillW;
+    else if (edge === 'top')    pos.y = 0;
+    else                        pos.y = window.innerHeight - BTN_H;
+  }
+  function setCollapsedPosOnEdge(edge: 'left' | 'right' | 'top' | 'bottom') {
+    // Only PEEK pixels visible. Button hangs off-screen so visible portion
+    // looks like a half-circle bump.
+    if (edge === 'right')  pos.x = window.innerWidth - PEEK;
+    else if (edge === 'left')   pos.x = -(BTN_H - PEEK);
+    else if (edge === 'top')    pos.y = -(BTN_H - PEEK);
+    else                        pos.y = window.innerHeight - PEEK;
+  }
+  function setEdge(edge: 'left' | 'right' | 'top' | 'bottom') {
+    pos.edge = edge;
+  }
+
   function collapse() {
     if (!pos.edge) return;
-    if (pos.edge === 'right') pos.x = window.innerWidth - PEEK;
-    else if (pos.edge === 'left') pos.x = -(BTN_H - PEEK);
-    else if (pos.edge === 'top') pos.y = -(BTN_H - PEEK);
-    else /* bottom */ pos.y = window.innerHeight - PEEK;
+    setCollapsedPosOnEdge(pos.edge);
     pos.collapsed = true;
     btn.classList.add('collapsed');
     applyPos();
@@ -526,45 +549,31 @@ function injectSettingsButton() {
   }
 
   function expand() {
-    clearTimeout(uncollTimer);
-    if (!pos.collapsed) return;
+    if (!pos.collapsed || !pos.edge) return;
     pos.collapsed = false;
     btn.classList.remove('collapsed');
-    // restore full-pill position based on which edge it's snapped to
-    if (pos.edge === 'right') pos.x = window.innerWidth - BTN_W - PEEK;
-    else if (pos.edge === 'left') pos.x = -(BTN_H - PEEK) + (BTN_W - (BTN_H - PEEK)) - (BTN_W - BTN_H) / 2;
-    // Simpler: just shift so the visible pill peeks from the edge identically.
-    // Left edge case: when expanded we want the LEFT side of pill aligned to
-    // the visible peek point (col - peek). Translate by (btn_w - btn_h + peek).
-    if (pos.edge === 'left') pos.x = PEEK - BTN_W;
-    if (pos.edge === 'top')  pos.y = PEEK - BTN_H;
-    if (pos.edge === 'bottom') pos.y = window.innerHeight - BTN_W;
+    setExpandedPosOnEdge(pos.edge);
     applyPos();
     save();
   }
 
-  // Load saved state and apply
+  // ── Load saved state ──
   chrome.storage.local.get([SETTINGS_BTN_KEY]).then((cfg) => {
     const saved: BtnPos | undefined = cfg[SETTINGS_BTN_KEY];
-    if (saved) {
-      pos.x = saved.x;
-      pos.y = saved.y;
-      pos.edge = saved.edge;
-      pos.collapsed = !!saved.collapsed;
-      if (pos.collapsed) {
-        btn.classList.add('collapsed');
-        // re-collapse position based on edge (in case window resized)
-        if (pos.edge === 'right') pos.x = window.innerWidth - PEEK;
-        else if (pos.edge === 'left') pos.x = -(BTN_H - PEEK);
-        else if (pos.edge === 'top') pos.y = -(BTN_H - PEEK);
-        else if (pos.edge === 'bottom') pos.y = window.innerHeight - PEEK;
-      }
+    if (!saved) { applyPos(); return; }
+    pos.x = saved.x;
+    pos.y = saved.y;
+    pos.edge = saved.edge;
+    pos.collapsed = !!saved.collapsed;
+    if (pos.collapsed && pos.edge) {
+      btn.classList.add('collapsed');
+      // re-snap position in case viewport changed since save
+      setCollapsedPosOnEdge(pos.edge);
     }
     applyPos();
-    // If persisted as collapsed, ready to expand on hover.
   });
 
-  // ── Drag logic ──
+  // ── Drag ──
   btn.addEventListener('mousedown', (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -582,106 +591,68 @@ function injectSettingsButton() {
     if (Math.abs(dx) + Math.abs(dy) > 3) dragMoved = true;
     pos.x = dragOrigin.bx + dx;
     pos.y = dragOrigin.by + dy;
-    // clamp inside viewport
-    pos.x = Math.max(-(BTN_W - BTN_H), Math.min(window.innerWidth - BTN_H, pos.x));
+    // Clamp so the pill (always expanded during drag) keeps at least a
+    // full 36px height visible on the chosen edge.
+    pos.x = Math.max(-(pillW - BTN_H), Math.min(window.innerWidth - BTN_H, pos.x));
     pos.y = Math.max(0, Math.min(window.innerHeight - BTN_H, pos.y));
+    pos.edge = null;             // dragging clears any snapped edge
     btn.classList.remove('collapsed');
     applyPos();
   });
+
   document.addEventListener('mouseup', () => {
     if (!dragOrigin) return;
     dragOrigin = null;
     btn.classList.remove('dragging');
 
-    // Find nearest edge
-    const distLeft   = pos.x + (BTN_W - BTN_H);  // right edge of pill dist from left of viewport
-    const distRight  = window.innerWidth - pos.x - BTN_H;
+    // Distance to each edge of the CURRENT (expanded) pill.
+    const distLeft   = pos.x;
+    const distRight  = window.innerWidth - pos.x - pillW;
     const distTop    = pos.y;
     const distBottom = window.innerHeight - pos.y - BTN_H;
     const minDist = Math.min(distLeft, distRight, distTop, distBottom);
 
-    pos.edge = (minDist === distLeft) ? 'left'
-             : (minDist === distRight) ? 'right'
-             : (minDist === distTop) ? 'top' : 'bottom';
-
+    // Only collapse if the user dropped it RIGHT NEAR an edge. Middle-of-screen
+    // drops stay where they were — they never trigger pos.edge / collapse.
     if (minDist < SNAP_THRESHOLD) {
-      // snap the pill to that edge, then collapse
-      if (pos.edge === 'left')   pos.x = 0;
-      else if (pos.edge === 'right')  pos.x = window.innerWidth - BTN_W;
-      else if (pos.edge === 'top')    pos.y = 0;
-      else                            pos.y = window.innerHeight - BTN_H;
+      const edge: 'left' | 'right' | 'top' | 'bottom' =
+        (minDist === distLeft)   ? 'left'
+      : (minDist === distRight)  ? 'right'
+      : (minDist === distTop)    ? 'top' : 'bottom';
+      setEdge(edge);
+      setExpandedPosOnEdge(edge);
       applyPos();
       save();
-      // collapse after delay (unless user is already hovering)
+      // Schedule collapse unless the user is already hovering the button.
       clearTimeout(snapTimer);
       snapTimer = setTimeout(() => {
-        if (!btn.matches(':hover')) {
-          pos.collapsed = true;
-          btn.classList.add('collapsed');
-          // adjust position so only PEEK shows
-          if (pos.edge === 'right')  pos.x = window.innerWidth - PEEK;
-          else if (pos.edge === 'left')   pos.x = -(BTN_H - PEEK);
-          else if (pos.edge === 'top')    pos.y = -(BTN_H - PEEK);
-          else                            pos.y = window.innerHeight - PEEK;
-          applyPos();
-          save();
-        }
+        if (!btn.matches(':hover') && !dragOrigin) collapse();
       }, COLLAPSE_DELAY);
     } else {
+      // In the middle: clear snap state, keep expanded, no auto-collapse.
+      pos.edge = null;
       pos.collapsed = false;
       btn.classList.remove('collapsed');
       save();
     }
   });
 
-  // ── Hover for collapsed expansion ──
+  // ── Hover (collapsed → expand, leave → re-collapse) ──
   btn.addEventListener('mouseenter', () => {
     clearTimeout(uncollTimer);
-    if (pos.collapsed) {
-      // expand on hover
-      pos.collapsed = false;
-      btn.classList.remove('collapsed');
-      if (pos.edge === 'right')  pos.x = window.innerWidth - BTN_W - PEEK;
-      else if (pos.edge === 'left')   pos.x = PEEK;
-      else if (pos.edge === 'top')    pos.y = PEEK;
-      else                            pos.y = window.innerHeight - BTN_H - PEEK;
-      applyPos();
-      save();
-    }
+    if (pos.collapsed) expand();
   });
   btn.addEventListener('mouseleave', () => {
     clearTimeout(uncollTimer);
     uncollTimer = setTimeout(() => {
-      if (pos.edge && !dragOrigin) {
-        pos.collapsed = true;
-        btn.classList.add('collapsed');
-        if (pos.edge === 'right')  pos.x = window.innerWidth - PEEK;
-        else if (pos.edge === 'left')   pos.x = -(BTN_H - PEEK);
-        else if (pos.edge === 'top')    pos.y = -(BTN_H - PEEK);
-        else                            pos.y = window.innerHeight - PEEK;
-        applyPos();
-        save();
-      }
+      if (pos.edge && !dragOrigin && pos.collapsed) collapse();
     }, UNCOLLAPSE_DELAY);
   });
 
-  // ── Click → settings dialog (only when not dragged) ──
+  // ── Click → settings dialog (only if not a drag) ──
   btn.addEventListener('click', (e) => {
-    if (dragMoved) {
-      dragMoved = false;
-      return;
-    }
-    // Also expand if currently collapsed, before opening
-    if (pos.collapsed) {
-      pos.collapsed = false;
-      btn.classList.remove('collapsed');
-      if (pos.edge === 'right')  pos.x = window.innerWidth - BTN_W - PEEK;
-      else if (pos.edge === 'left')   pos.x = PEEK;
-      if (pos.edge === 'top')    pos.y = PEEK;
-      if (pos.edge === 'bottom') pos.y = window.innerHeight - BTN_H - PEEK;
-      applyPos();
-      save();
-    }
+    if (dragMoved) { dragMoved = false; return; }
+    if (pos.collapsed) expand();
     showSettingsDialog();
   });
 }
