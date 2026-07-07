@@ -20,7 +20,7 @@
 #   git push origin vX.Y.Z
 #
 # ---------------------------------------------------------------
-# TEMPLATE NOTE (shipped with the `version-bump` skill):
+# TEMPLATE NOTE (shipped with the `fastapi-vue-version-bump` skill):
 # Pre-configured for **2 components** — `backend` (Python/FastAPI · `uv lock`)
 #   and `frontend` (Vue 3 · `npm install`). Default source-of-truth files
 #   match each toolchain's convention (pyproject.toml / package.json).

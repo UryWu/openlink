@@ -1,5 +1,5 @@
 ---
-name: version-bump
+name: fastapi-vue-version-bump
 description: Bump version across the two versioned components of a typical FastAPI+Vue (or Python-backend + Node-frontend) project (backend / frontend; add a third in the bundled scripts to fit your project) by running scripts/bump_version.{sh,ps1}, regenerate lockfiles safely (uv lock / npm install — never sed them), update CHANGELOG.md in Keep-a-Changelog categories, and run the release commit/tag/push workflow. Ships pre-configured for Python+Vue projects; to swap toolchains (e.g. uv lock for cargo generate-lockfile), edit the bundled scripts. Use when the user says "升级版本" / "bump to vX.Y.Z" / "release vX.Y.Z" / "patch" / "minor" / "major", asks which SemVer bump to apply, reports a stale-version warning, asks about lockfile corruption (uv.lock / package-lock.json / Cargo.lock 404s), or is adding a new version-bearing file to the bump script.
 ---
 
