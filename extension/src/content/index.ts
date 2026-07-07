@@ -434,18 +434,256 @@ function startDOMObserver(_responseSelector: string) {
   });
 }
 
+// ── Edge-snapping FAB with auto-collapse ──────────────────────────────
+// The settings button is draggable. On release, if it's close enough to
+// a screen edge, it snaps there and after a short delay auto-collapses
+// to a half-circle peeking from the edge (icon only). Hovering it
+// re-expands it back to the full pill. Position + collapsed state are
+// persisted in chrome.storage so they survive page refresh.
+const SETTINGS_BTN_KEY = 'openlink-settings-btn';
+const BTN_W = 100;             // pill width when expanded (icon + text "OpenLink设置")
+const BTN_H = 36;
+const PEEK = 18;              // half-circle visible when collapsed (matches radius)
+const SNAP_THRESHOLD = 60;    // px from edge → snap & collapse
+const COLLAPSE_DELAY = 800;   // ms after snap before collapsing
+const UNCOLLAPSE_DELAY = 250; // ms after mouseleave before re-collapsing
+
+interface BtnPos { x: number; y: number; edge: 'left' | 'right' | 'top' | 'bottom' | null; collapsed: boolean }
+
 function injectSettingsButton() {
   // Remove any pre-existing button (handles reinstalls / duplicate injections)
   document.getElementById('openlink-buttons')?.remove();
 
+  // Inject stylesheet once — defines expanded pill, collapsed circle, transitions.
+  if (!document.getElementById('openlink-settings-btn-style')) {
+    const s = document.createElement('style');
+    s.id = 'openlink-settings-btn-style';
+    s.textContent = `
+      #openlink-buttons {
+        position: fixed !important;
+        z-index: 99999;
+        min-width: ${BTN_H}px; width: ${BTN_W}px; height: ${BTN_H}px;
+        padding: 0 14px; box-sizing: border-box;
+        background: #1677ff; color: #fff;
+        border: none; border-radius: 18px;
+        cursor: grab; font-size: 13px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        user-select: none; -webkit-user-select: none;
+        display: flex; align-items: center; justify-content: center; gap: 6px;
+        white-space: nowrap; overflow: hidden;
+        transition: width 0.22s cubic-bezier(0.4,0,0.2,1),
+                    border-radius 0.22s,
+                    padding 0.22s;
+      }
+      #openlink-buttons.dragging { cursor: grabbing; transition: none; }
+      #openlink-buttons .ol-icon { font-size: 14px; line-height: 1; display: inline-block; }
+      #openlink-buttons .ol-text { display: inline-block; }
+      #openlink-buttons.collapsed {
+        width: ${BTN_H}px; padding: 0;
+        border-radius: 50%;
+      }
+      #openlink-buttons.collapsed .ol-text { display: none; }
+    `;
+    document.head.appendChild(s);
+  }
+
   const btn = document.createElement('button');
   btn.id = 'openlink-buttons';
-  btn.textContent = 'OpenLink设置';
+  btn.innerHTML = '<span class="ol-icon">🔗</span><span class="ol-text">OpenLink设置</span>';
   btn.title = 'OpenLink 设置';
-  btn.style.cssText = 'position:fixed;bottom:80px;right:20px;z-index:99999;padding:8px 14px;background:#1677ff;color:#fff;border:none;border-radius:20px;cursor:pointer;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.3)';
-  btn.onclick = showSettingsDialog;
 
   document.body.appendChild(btn);
+
+  // ── State ──
+  const pos: BtnPos = {
+    x: window.innerWidth - BTN_W - 20,
+    y: window.innerHeight - BTN_H - 80,
+    edge: null,
+    collapsed: false,
+  };
+  let dragOrigin: { x: number; y: number; bx: number; by: number } | null = null;
+  let snapTimer: any = null;
+  let uncollTimer: any = null;
+  let dragMoved = false;
+
+  const save = () => chrome.storage.local.set({ [SETTINGS_BTN_KEY]: pos });
+
+  function applyPos() {
+    btn.style.left = pos.x + 'px';
+    btn.style.top = pos.y + 'px';
+  }
+
+  function collapse() {
+    if (!pos.edge) return;
+    if (pos.edge === 'right') pos.x = window.innerWidth - PEEK;
+    else if (pos.edge === 'left') pos.x = -(BTN_H - PEEK);
+    else if (pos.edge === 'top') pos.y = -(BTN_H - PEEK);
+    else /* bottom */ pos.y = window.innerHeight - PEEK;
+    pos.collapsed = true;
+    btn.classList.add('collapsed');
+    applyPos();
+    save();
+  }
+
+  function expand() {
+    clearTimeout(uncollTimer);
+    if (!pos.collapsed) return;
+    pos.collapsed = false;
+    btn.classList.remove('collapsed');
+    // restore full-pill position based on which edge it's snapped to
+    if (pos.edge === 'right') pos.x = window.innerWidth - BTN_W - PEEK;
+    else if (pos.edge === 'left') pos.x = -(BTN_H - PEEK) + (BTN_W - (BTN_H - PEEK)) - (BTN_W - BTN_H) / 2;
+    // Simpler: just shift so the visible pill peeks from the edge identically.
+    // Left edge case: when expanded we want the LEFT side of pill aligned to
+    // the visible peek point (col - peek). Translate by (btn_w - btn_h + peek).
+    if (pos.edge === 'left') pos.x = PEEK - BTN_W;
+    if (pos.edge === 'top')  pos.y = PEEK - BTN_H;
+    if (pos.edge === 'bottom') pos.y = window.innerHeight - BTN_W;
+    applyPos();
+    save();
+  }
+
+  // Load saved state and apply
+  chrome.storage.local.get([SETTINGS_BTN_KEY]).then((cfg) => {
+    const saved: BtnPos | undefined = cfg[SETTINGS_BTN_KEY];
+    if (saved) {
+      pos.x = saved.x;
+      pos.y = saved.y;
+      pos.edge = saved.edge;
+      pos.collapsed = !!saved.collapsed;
+      if (pos.collapsed) {
+        btn.classList.add('collapsed');
+        // re-collapse position based on edge (in case window resized)
+        if (pos.edge === 'right') pos.x = window.innerWidth - PEEK;
+        else if (pos.edge === 'left') pos.x = -(BTN_H - PEEK);
+        else if (pos.edge === 'top') pos.y = -(BTN_H - PEEK);
+        else if (pos.edge === 'bottom') pos.y = window.innerHeight - PEEK;
+      }
+    }
+    applyPos();
+    // If persisted as collapsed, ready to expand on hover.
+  });
+
+  // ── Drag logic ──
+  btn.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragOrigin = { x: e.clientX, y: e.clientY, bx: pos.x, by: pos.y };
+    dragMoved = false;
+    btn.classList.add('dragging');
+    clearTimeout(snapTimer);
+    // expand immediately on grab
+    if (pos.collapsed) expand();
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!dragOrigin) return;
+    const dx = e.clientX - dragOrigin.x;
+    const dy = e.clientY - dragOrigin.y;
+    if (Math.abs(dx) + Math.abs(dy) > 3) dragMoved = true;
+    pos.x = dragOrigin.bx + dx;
+    pos.y = dragOrigin.by + dy;
+    // clamp inside viewport
+    pos.x = Math.max(-(BTN_W - BTN_H), Math.min(window.innerWidth - BTN_H, pos.x));
+    pos.y = Math.max(0, Math.min(window.innerHeight - BTN_H, pos.y));
+    btn.classList.remove('collapsed');
+    applyPos();
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragOrigin) return;
+    dragOrigin = null;
+    btn.classList.remove('dragging');
+
+    // Find nearest edge
+    const distLeft   = pos.x + (BTN_W - BTN_H);  // right edge of pill dist from left of viewport
+    const distRight  = window.innerWidth - pos.x - BTN_H;
+    const distTop    = pos.y;
+    const distBottom = window.innerHeight - pos.y - BTN_H;
+    const minDist = Math.min(distLeft, distRight, distTop, distBottom);
+
+    pos.edge = (minDist === distLeft) ? 'left'
+             : (minDist === distRight) ? 'right'
+             : (minDist === distTop) ? 'top' : 'bottom';
+
+    if (minDist < SNAP_THRESHOLD) {
+      // snap the pill to that edge, then collapse
+      if (pos.edge === 'left')   pos.x = 0;
+      else if (pos.edge === 'right')  pos.x = window.innerWidth - BTN_W;
+      else if (pos.edge === 'top')    pos.y = 0;
+      else                            pos.y = window.innerHeight - BTN_H;
+      applyPos();
+      save();
+      // collapse after delay (unless user is already hovering)
+      clearTimeout(snapTimer);
+      snapTimer = setTimeout(() => {
+        if (!btn.matches(':hover')) {
+          pos.collapsed = true;
+          btn.classList.add('collapsed');
+          // adjust position so only PEEK shows
+          if (pos.edge === 'right')  pos.x = window.innerWidth - PEEK;
+          else if (pos.edge === 'left')   pos.x = -(BTN_H - PEEK);
+          else if (pos.edge === 'top')    pos.y = -(BTN_H - PEEK);
+          else                            pos.y = window.innerHeight - PEEK;
+          applyPos();
+          save();
+        }
+      }, COLLAPSE_DELAY);
+    } else {
+      pos.collapsed = false;
+      btn.classList.remove('collapsed');
+      save();
+    }
+  });
+
+  // ── Hover for collapsed expansion ──
+  btn.addEventListener('mouseenter', () => {
+    clearTimeout(uncollTimer);
+    if (pos.collapsed) {
+      // expand on hover
+      pos.collapsed = false;
+      btn.classList.remove('collapsed');
+      if (pos.edge === 'right')  pos.x = window.innerWidth - BTN_W - PEEK;
+      else if (pos.edge === 'left')   pos.x = PEEK;
+      else if (pos.edge === 'top')    pos.y = PEEK;
+      else                            pos.y = window.innerHeight - BTN_H - PEEK;
+      applyPos();
+      save();
+    }
+  });
+  btn.addEventListener('mouseleave', () => {
+    clearTimeout(uncollTimer);
+    uncollTimer = setTimeout(() => {
+      if (pos.edge && !dragOrigin) {
+        pos.collapsed = true;
+        btn.classList.add('collapsed');
+        if (pos.edge === 'right')  pos.x = window.innerWidth - PEEK;
+        else if (pos.edge === 'left')   pos.x = -(BTN_H - PEEK);
+        else if (pos.edge === 'top')    pos.y = -(BTN_H - PEEK);
+        else                            pos.y = window.innerHeight - PEEK;
+        applyPos();
+        save();
+      }
+    }, UNCOLLAPSE_DELAY);
+  });
+
+  // ── Click → settings dialog (only when not dragged) ──
+  btn.addEventListener('click', (e) => {
+    if (dragMoved) {
+      dragMoved = false;
+      return;
+    }
+    // Also expand if currently collapsed, before opening
+    if (pos.collapsed) {
+      pos.collapsed = false;
+      btn.classList.remove('collapsed');
+      if (pos.edge === 'right')  pos.x = window.innerWidth - BTN_W - PEEK;
+      else if (pos.edge === 'left')   pos.x = PEEK;
+      if (pos.edge === 'top')    pos.y = PEEK;
+      if (pos.edge === 'bottom') pos.y = window.innerHeight - BTN_H - PEEK;
+      applyPos();
+      save();
+    }
+    showSettingsDialog();
+  });
 }
 
 async function bgFetch(url: string, options?: any): Promise<{ ok: boolean; status: number; body: string }> {
