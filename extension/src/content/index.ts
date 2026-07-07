@@ -490,16 +490,21 @@ function showSettingsDialog() {
 
   const overlay = document.createElement('div');
   overlay.id = 'openlink-settings-dialog';
+  // Transparent full-screen overlay — no visual shadow, but still modal
+  // because it intercepts mouse clicks on the page below. Click on the
+  // overlay (i.e. outside the dialog box) closes the dialog.
   overlay.style.cssText = [
     'position:fixed', 'inset:0', 'z-index:999999',
-    'background:rgba(0,0,0,0.5)',
     'display:flex', 'align-items:center', 'justify-content:center',
     'font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
   ].join(';');
 
   overlay.innerHTML = `
-    <div style="background:#1e1e1e;color:#e1e3ec;padding:24px;border-radius:12px;width:420px;max-width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.5)">
-      <h2 style="margin:0 0 16px;font-size:18px;">OpenLink 设置</h2>
+    <div id="openlink-settings-box" style="background:#1e1e1e;color:#e1e3ec;padding:24px;border-radius:12px;width:420px;max-width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.5);position:relative">
+      <div id="openlink-settings-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;cursor:grab;user-select:none">
+        <h2 style="margin:0;font-size:18px;">OpenLink 设置</h2>
+        <button id="openlink-settings-close" title="关闭" aria-label="关闭" style="padding:0;width:24px;height:24px;background:transparent;color:#9aa0a8;border:none;border-radius:4px;cursor:pointer;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;">×</button>
+      </div>
       <label style="display:block;margin-bottom:12px;font-size:13px;color:#9aa0a8;">
         API 地址
         <input id="openlink-url" type="text" placeholder="http://127.0.0.1:39527"
@@ -550,6 +555,44 @@ function showSettingsDialog() {
   });
 
   const close = () => overlay.remove();
+
+  // ── Make the dialog draggable from the header bar ──
+  // mousedown on header → record offset; mousemove on document → translate
+  // the box. mouseup ends the drag. CSS handles no-select during drag.
+  const box = document.getElementById('openlink-settings-box') as HTMLElement;
+  const header = document.getElementById('openlink-settings-header') as HTMLElement;
+  let dragOffsetX = 0, dragOffsetY = 0, dragging = false;
+  header.addEventListener('mousedown', (e) => {
+    if ((e.target as HTMLElement).id === 'openlink-settings-close') return;
+    dragging = true;
+    const rect = box.getBoundingClientRect();
+    dragOffsetX = e.clientX - rect.left;
+    dragOffsetY = e.clientY - rect.top;
+    // Switch from centered flex layout to absolute positioning at the cursor spot
+    box.style.position = 'fixed';
+    box.style.left = `${rect.left}px`;
+    box.style.top = `${rect.top}px`;
+    box.style.margin = '0';
+    box.style.transform = 'none';
+    document.body.style.userSelect = 'none';
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    box.style.left = `${e.clientX - dragOffsetX}px`;
+    box.style.top = `${e.clientY - dragOffsetY}px`;
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.userSelect = '';
+  });
+
+  // ── Click on the transparent overlay (i.e. outside the dialog box) closes it ──
+  overlay.addEventListener('mousedown', (e) => {
+    if (e.target === overlay) close();
+  });
+
+  document.getElementById('openlink-settings-close')!.addEventListener('click', close);
   document.getElementById('openlink-cancel')!.addEventListener('click', close);
   // "🔗 初始化" from inside the settings dialog — same action as the
   // floating 🔗 button (send system prompt to AI). Closes the dialog first
