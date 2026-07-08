@@ -709,7 +709,16 @@ function showSettingsDialog() {
   ].join(';');
 
   overlay.innerHTML = `
-    <div id="openlink-settings-box" style="background:#1e1e1e;color:#e1e3ec;padding:24px;border-radius:12px;width:480px;max-width:90%;min-width:360px;min-height:280px;box-shadow:0 8px 32px rgba(0,0,0,0.5);position:relative;resize:both;overflow:auto">
+    <div id="openlink-settings-box" style="background:#1e1e1e;color:#e1e3ec;padding:24px;border-radius:12px;width:480px;max-width:90%;min-width:360px;min-height:280px;box-shadow:0 8px 32px rgba(0,0,0,0.5);position:relative;overflow:hidden">
+      <!-- 8 resize handles: 4 corners + 4 edges. innerHTML-injected as children. -->
+      <div data-resize-handle="nw" style="position:absolute;left:0;top:0;width:14px;height:14px;cursor:nwse-resize;z-index:1"></div>
+      <div data-resize-handle="n"  style="position:absolute;left:14px;top:0;right:14px;height:8px;cursor:ns-resize;z-index:1"></div>
+      <div data-resize-handle="ne" style="position:absolute;right:0;top:0;width:14px;height:14px;cursor:nesw-resize;z-index:1"></div>
+      <div data-resize-handle="w"  style="position:absolute;left:0;top:14px;bottom:14px;width:8px;cursor:ew-resize;z-index:1"></div>
+      <div data-resize-handle="e"  style="position:absolute;right:0;top:14px;bottom:14px;width:8px;cursor:ew-resize;z-index:1"></div>
+      <div data-resize-handle="sw" style="position:absolute;left:0;bottom:0;width:14px;height:14px;cursor:nesw-resize;z-index:1"></div>
+      <div data-resize-handle="s"  style="position:absolute;left:14px;bottom:0;right:14px;height:8px;cursor:ns-resize;z-index:1"></div>
+      <div data-resize-handle="se" style="position:absolute;right:0;bottom:0;width:14px;height:14px;cursor:nwse-resize;z-index:1"></div>
       <div id="openlink-settings-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;cursor:grab;user-select:none">
         <h2 style="margin:0;font-size:18px;">OpenLink 设置</h2>
         <button id="openlink-settings-close" title="关闭" aria-label="关闭" style="padding:0;width:24px;height:24px;background:transparent;color:#9aa0a8;border:none;border-radius:4px;cursor:pointer;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;">×</button>
@@ -791,6 +800,18 @@ function showSettingsDialog() {
   // the box. mouseup ends the drag. CSS handles no-select during drag.
   const box = document.getElementById('openlink-settings-box') as HTMLElement;
   const header = document.getElementById('openlink-settings-header') as HTMLElement;
+  const MIN_W = 360, MIN_H = 280;
+  const SETTINGS_SIZE_KEY = 'openlink-settings-dialog-size';
+
+  // Restore previously-saved width/height
+  chrome.storage.local.get([SETTINGS_SIZE_KEY]).then((cfg) => {
+    const sz = cfg[SETTINGS_SIZE_KEY];
+    if (sz && sz.w >= MIN_W && sz.h >= MIN_H) {
+      box.style.width  = sz.w + 'px';
+      box.style.height = sz.h + 'px';
+    }
+  });
+
   let dragOffsetX = 0, dragOffsetY = 0, dragging = false;
   header.addEventListener('mousedown', (e) => {
     if ((e.target as HTMLElement).id === 'openlink-settings-close') return;
@@ -815,6 +836,82 @@ function showSettingsDialog() {
     if (!dragging) return;
     dragging = false;
     document.body.style.userSelect = '';
+  });
+
+  // ── 8-direction resize (4 edges + 4 corners) ──
+  // mousedown on a handle → record start rect + which direction; mousemove
+  // adjusts width/height/x/y; mouseup persists to chrome.storage.
+  type ResizeDir = 'nw' | 'n' | 'ne' | 'w' | 'e' | 'sw' | 's' | 'se';
+  let resizeDir: ResizeDir | null = null;
+  let resizeStartRect: { left: number; top: number; width: number; height: number } | null = null;
+  let resizeStartX = 0, resizeStartY = 0;
+
+  overlay.querySelectorAll<HTMLElement>('[data-resize-handle]').forEach((handle) => {
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      resizeDir = handle.dataset.resizeHandle as ResizeDir;
+      const rect = box.getBoundingClientRect();
+      resizeStartRect = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+      resizeStartX = e.clientX;
+      resizeStartY = e.clientY;
+      // Promote to fixed if not already (so resize works after drag too)
+      if (box.style.position !== 'fixed') {
+        box.style.position = 'fixed';
+        box.style.left = rect.left + 'px';
+        box.style.top = rect.top + 'px';
+        box.style.margin = '0';
+        box.style.transform = 'none';
+      }
+      document.body.style.userSelect = 'none';
+    });
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!resizeDir || !resizeStartRect) return;
+    const dx = e.clientX - resizeStartX;
+    const dy = e.clientY - resizeStartY;
+    let { left, top, width, height } = resizeStartRect;
+
+    // Width — west edges grow/shrink width AND shift left
+    if (resizeDir === 'nw' || resizeDir === 'w' || resizeDir === 'sw') {
+      const w = Math.max(MIN_W, width - dx);
+      left = left + (width - w);
+      width = w;
+    } else if (resizeDir === 'ne' || resizeDir === 'e' || resizeDir === 'se') {
+      width = Math.max(MIN_W, width + dx);
+    }
+    // Height — north edges grow/shrink height AND shift top
+    if (resizeDir === 'nw' || resizeDir === 'n' || resizeDir === 'ne') {
+      const h = Math.max(MIN_H, height - dy);
+      top = top + (height - h);
+      height = h;
+    } else if (resizeDir === 'sw' || resizeDir === 's' || resizeDir === 'se') {
+      height = Math.max(MIN_H, height + dy);
+    }
+
+    // Clamp inside viewport
+    width = Math.min(width, window.innerWidth - left);
+    height = Math.min(height, window.innerHeight - top);
+    if (left < 0) { width -= -left; left = 0; }
+    if (top < 0)  { height -= -top; top = 0; }
+
+    box.style.left   = left   + 'px';
+    box.style.top    = top    + 'px';
+    box.style.width  = width  + 'px';
+    box.style.height = height + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!resizeDir || !resizeStartRect) return;
+    resizeDir = null;
+    resizeStartRect = null;
+    document.body.style.userSelect = '';
+    // Persist final size
+    const rect = box.getBoundingClientRect();
+    chrome.storage.local.set({
+      [SETTINGS_SIZE_KEY]: { w: Math.round(rect.width), h: Math.round(rect.height) },
+    });
   });
 
   // ── Click on the transparent overlay (i.e. outside the dialog box) closes it ──
