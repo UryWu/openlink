@@ -768,22 +768,22 @@ function showSettingsDialog() {
 
       <div class="openlink-panel" data-panel="tool" style="display:none">
         <div style="font-size:13px;color:#9aa0a8;margin-bottom:6px">在下方输入或粘贴工具调用 XML，提交后直接 POST <code style="font-size:12px">/exec</code>，结果回显在下方。</div>
-        <div style="display:flex;gap:8px;align-items:stretch">
-          <div style="display:flex;flex-direction:column;gap:6px;min-width:74px;flex:0 0 74px">
-            <button id="openlink-tool-execute" style="flex:1;padding:8px 12px;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">执行</button>
-            <button id="openlink-tool-clear" style="flex:1;padding:8px 12px;background:transparent;color:#9aa0a8;border:1px solid #2a2d3a;border-radius:6px;cursor:pointer;font-size:13px">清空</button>
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 50px">
+            <button id="openlink-tool-execute" style="width:50px;height:50px;padding:0;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">执行</button>
+            <button id="openlink-tool-clear" style="width:50px;height:50px;padding:0;background:transparent;color:#9aa0a8;border:1px solid #2a2d3a;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">清空</button>
           </div>
           <textarea id="openlink-tool-input" placeholder='&lt;tool name="list_dir"&gt;\n  &lt;parameter name="path"&gt;.&lt;/parameter&gt;\n&lt;/tool&gt;'
-            style="flex:1;height:160px;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:12px;box-sizing:border-box;outline:none"></textarea>
+            style="flex:1;height:166px;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:12px;box-sizing:border-box;outline:none"></textarea>
         </div>
         <div id="openlink-tool-result-wrap" style="display:none;margin-top:12px">
           <div style="font-size:11px;color:#6b7280;margin-bottom:4px">结果：</div>
-          <div style="display:flex;gap:8px;align-items:stretch">
-            <div style="display:flex;flex-direction:column;gap:6px;min-width:74px;flex:0 0 74px">
-              <button id="openlink-tool-copy" style="flex:1;padding:8px 12px;background:transparent;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;cursor:pointer;font-size:13px">复制</button>
-              <button id="openlink-tool-insert" style="flex:1;padding:8px 12px;background:transparent;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;cursor:pointer;font-size:13px">插入</button>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 50px">
+              <button id="openlink-tool-insert" style="width:50px;height:50px;padding:0;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">插入</button>
+              <button id="openlink-tool-copy" style="width:50px;height:50px;padding:0;background:transparent;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">复制</button>
             </div>
-            <pre id="openlink-tool-result" style="flex:1;margin:0;padding:10px;background:#0f1117;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:240px;overflow-y:auto;color:#cdd6f4"></pre>
+            <pre id="openlink-tool-result" style="flex:1;margin:0;padding:10px;background:#0f1117;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:106px;overflow-y:auto;color:#cdd6f4;min-height:106px;box-sizing:border-box"></pre>
           </div>
         </div>
       </div>
@@ -1026,12 +1026,16 @@ function showSettingsDialog() {
     copyResultToClipboard(resultText);
   });
 
-  document.getElementById('openlink-tool-insert')!.addEventListener('click', () => {
+  document.getElementById('openlink-tool-insert')!.addEventListener('click', async () => {
     const resultText = document.getElementById('openlink-tool-result')!.textContent || '';
     if (!resultText.trim()) { showToast('⚠ 无结果可插入'); return; }
-    // 把结果当普通消息插到 AI 编辑器, 让用户自己点发送 (autoSend=false)
-    fillAndSend(resultText, false);
-    showToast('✅ 已插入到 AI 输入框');
+    // AutoExecute 决定是否自动提交 (跟主流程行为对齐):
+    //   勾选 → fill + 自动发送 (autoSend=true, 走 delayMin~delayMax 随机延迟)
+    //   不勾选 → 只填入编辑框, 用户自己点发送 (autoSend=false)
+    const { autoExecute } = await chrome.storage.local.get(['autoExecute']);
+    const autoSubmit = autoExecute !== false;  // 默认 true (跟主流程一致)
+    fillAndSend(resultText, autoSubmit);
+    showToast(autoSubmit ? '✅ 已插入并自动提交' : '✅ 已插入到 AI 输入框');
   });
 
   // Shared save logic — returns true on success, false on validation failure.
