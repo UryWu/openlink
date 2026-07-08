@@ -1065,23 +1065,16 @@ function showSettingsDialog() {
   // ── [最新ai回复] 兜底按钮 ──
   // 注入拦截偶尔漏抓 (DeepSeek 偶发响应结构变更), 这个按钮从 DOM 重新捞最近一条
   // AI 助手消息, 把里面的 <tool>...</tool> XML 填回 textarea (跟手动粘贴等价).
+  // 提示走 showToast, 不占结果框 —— 结果框留给后端 /exec 回复专用.
   document.getElementById('openlink-tool-fetch-latest')!.addEventListener('click', () => {
-    const resultBox = document.getElementById('openlink-tool-result')!;
-    const resultWrap = document.getElementById('openlink-tool-result-wrap')!;
-    const show = (text: string, color: string) => {
-      resultWrap.style.display = 'block';
-      resultBox.style.color = color;
-      resultBox.textContent = text;
-    };
-
     const sel = getSiteConfig().responseSelector;
     if (!sel) {
-      show('⚠ 当前站点未配置 responseSelector, 无法抓取', '#fbbf24');
+      showToast('⚠ 当前站点未配置 responseSelector, 无法抓取');
       return;
     }
     const nodes = document.querySelectorAll(sel);
     if (nodes.length === 0) {
-      show('⚠ 没找到 AI 助手消息 (' + sel + ')', '#fbbf24');
+      showToast('⚠ 没找到 AI 助手消息 (' + sel + ')');
       return;
     }
     const last = nodes[nodes.length - 1];
@@ -1092,13 +1085,13 @@ function showSettingsDialog() {
     // 非贪婪 + 边界确保不会跨段匹配.
     const matches = Array.from(text.matchAll(/<tool(?:\s[^>]*)?>[\s\S]*?<\/tool(?:_call)?>/g));
     if (matches.length === 0) {
-      show('⚠ 最近一条 AI 回复里没找到 <tool> XML', '#fbbf24');
+      showToast('⚠ 最近一条 AI 回复里没找到 <tool> XML');
       return;
     }
     toolInputEl.value = matches.map((m) => m[0]).join('\n');
     // 同步触发持久化 (input 事件由程序设置 value 不会自动 dispatch)
     chrome.storage.local.set({ [TOOL_INPUT_KEY]: toolInputEl.value });
-    show(`✅ 已提取 ${matches.length} 个工具调用 (来源: 最近 AI 回复)`, '#a6e3a1');
+    showToast(`✅ 已提取 ${matches.length} 个工具调用 (来源: 最近 AI 回复)`);
   });
 
   // ── 复制 / 插入 工具结果 ──
