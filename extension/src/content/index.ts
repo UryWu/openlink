@@ -777,7 +777,13 @@ function showSettingsDialog() {
             style="flex:1;height:166px;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:12px;box-sizing:border-box;outline:none"></textarea>
         </div>
         <div id="openlink-tool-result-wrap" style="display:none;margin-top:12px">
-          <div style="font-size:11px;color:#6b7280;margin-bottom:4px">结果：</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:11px;color:#6b7280">结果：</span>
+            <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#9aa0a8;cursor:pointer">
+              <input id="openlink-tool-auto-insert" type="checkbox" style="margin:0">
+              自动插入到 AI 对话框
+            </label>
+          </div>
           <div style="display:flex;gap:8px;align-items:flex-start">
             <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 50px">
               <button id="openlink-tool-insert" style="width:50px;height:50px;padding:0;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">插入</button>
@@ -963,6 +969,16 @@ function showSettingsDialog() {
   // ── Tool command panel ──
   // Parse the XML the user typed, then POST /exec directly (bypassing the
   // auto-fill-AI-editor flow). Result is rendered into the dialog.
+  // ── 自动插入 checkbox 持久化 ──
+  const AUTO_INSERT_KEY = 'openlink-tool-auto-insert';
+  const autoInsertCb = document.getElementById('openlink-tool-auto-insert') as HTMLInputElement;
+  chrome.storage.local.get([AUTO_INSERT_KEY]).then((cfg) => {
+    autoInsertCb.checked = cfg[AUTO_INSERT_KEY] === true;  // 默认 false
+  });
+  autoInsertCb.addEventListener('change', () => {
+    chrome.storage.local.set({ [AUTO_INSERT_KEY]: autoInsertCb.checked });
+  });
+
   document.getElementById('openlink-tool-execute')!.addEventListener('click', async () => {
     const raw = (document.getElementById('openlink-tool-input') as HTMLTextAreaElement).value.trim();
     const resultBox = document.getElementById('openlink-tool-result')!;
@@ -988,8 +1004,17 @@ function showSettingsDialog() {
       }
       const result = await executeToolCallRaw(toolCall);
       resultWrap.style.display = 'block';
-      resultBox.style.color = result.startsWith('[OpenLink') || result.includes('错误') ? '#f87171' : '#a6e3a1';
+      const isError = result.startsWith('[OpenLink') || result.includes('错误');
+      resultBox.style.color = isError ? '#f87171' : '#a6e3a1';
       resultBox.textContent = result;
+
+      // 自动插入到 AI 对话框 (跟 [插入] 按钮行为一致, 跟随 AutoExecute 决定是否自动提交)
+      if (autoInsertCb.checked && !isError) {
+        const { autoExecute } = await chrome.storage.local.get(['autoExecute']);
+        const autoSubmit = autoExecute !== false;
+        fillAndSend(result, autoSubmit);
+        showToast(autoSubmit ? '✅ 已自动插入并提交' : '✅ 已自动插入到 AI 输入框');
+      }
     } finally {
       execBtn.disabled = false;
       execBtn.textContent = '执行';
