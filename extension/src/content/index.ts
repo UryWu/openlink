@@ -979,6 +979,24 @@ function showSettingsDialog() {
     chrome.storage.local.set({ [AUTO_INSERT_KEY]: autoInsertCb.checked });
   });
 
+  // ── 工具命令输入框持久化 ──
+  // 关闭再打开弹窗时, 恢复用户上次输入 (执行完不清空). 仅 [清空] 按钮同时清 storage.
+  const TOOL_INPUT_KEY = 'openlink-tool-input';
+  const toolInputEl = document.getElementById('openlink-tool-input') as HTMLTextAreaElement;
+  chrome.storage.local.get([TOOL_INPUT_KEY]).then((cfg) => {
+    if (typeof cfg[TOOL_INPUT_KEY] === 'string') {
+      toolInputEl.value = cfg[TOOL_INPUT_KEY];
+    }
+  });
+  // 输入时落盘 (debounce 避免每个按键都写 storage)
+  let inputSaveTimer: number | null = null;
+  toolInputEl.addEventListener('input', () => {
+    if (inputSaveTimer !== null) clearTimeout(inputSaveTimer);
+    inputSaveTimer = window.setTimeout(() => {
+      chrome.storage.local.set({ [TOOL_INPUT_KEY]: toolInputEl.value });
+    }, 300);
+  });
+
   document.getElementById('openlink-tool-execute')!.addEventListener('click', async () => {
     const raw = (document.getElementById('openlink-tool-input') as HTMLTextAreaElement).value.trim();
     const resultBox = document.getElementById('openlink-tool-result')!;
@@ -1022,6 +1040,7 @@ function showSettingsDialog() {
   });
   document.getElementById('openlink-tool-clear')!.addEventListener('click', () => {
     (document.getElementById('openlink-tool-input') as HTMLTextAreaElement).value = '';
+    chrome.storage.local.remove(TOOL_INPUT_KEY);
     document.getElementById('openlink-tool-result-wrap')!.style.display = 'none';
   });
 
