@@ -112,6 +112,9 @@ function getSiteConfig(): SiteConfig {
       stopBtn: '.ds-button--primary.ds-button--filled.ds-button--circle',
       fillMethod: 'value',
       useObserver: false,
+      // Used by [最新ai回复] fallback button to scan the most recent assistant
+      // message for <tool> tags when injected.js interception misses them.
+      responseSelector: '.ds-markdown.ds-assistant-message-main-content',
     };
   // Default: empty selectors — safe no-op for any unmatched host.
   return { editor: '', sendBtn: '', stopBtn: null, fillMethod: 'value', useObserver: false };
@@ -769,9 +772,10 @@ function showSettingsDialog() {
       <div class="openlink-panel" data-panel="tool" style="display:none">
         <div style="font-size:13px;color:#9aa0a8;margin-bottom:6px">在下方输入或粘贴工具调用 XML，提交后直接 POST <code style="font-size:12px">/exec</code>，结果回显在下方。</div>
         <div style="display:flex;gap:8px;align-items:flex-start">
-          <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 50px">
-            <button id="openlink-tool-execute" style="width:50px;height:50px;padding:0;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">执行</button>
-            <button id="openlink-tool-clear" style="width:50px;height:50px;padding:0;background:transparent;color:#9aa0a8;border:1px solid #2a2d3a;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">清空</button>
+          <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 60px">
+            <button id="openlink-tool-execute" style="width:60px;height:50px;padding:0;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">执行</button>
+            <button id="openlink-tool-clear" style="width:60px;height:50px;padding:0;background:transparent;color:#9aa0a8;border:1px solid #2a2d3a;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">清空</button>
+            <button id="openlink-tool-fetch-latest" title="从最近一条 AI 回复中提取工具调用 XML (注入拦截偶尔漏抓时的兜底)" style="width:60px;height:50px;padding:0;background:transparent;color:#9aa0a8;border:1px solid #2a2d3a;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;line-height:1.1">最新ai回复</button>
           </div>
           <textarea id="openlink-tool-input" placeholder='&lt;tool name="list_dir"&gt;\n  &lt;parameter name="path"&gt;.&lt;/parameter&gt;\n&lt;/tool&gt;'
             style="flex:1;height:166px;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:12px;box-sizing:border-box;outline:none"></textarea>
@@ -785,9 +789,9 @@ function showSettingsDialog() {
         <div id="openlink-tool-result-wrap" style="display:none;margin-top:12px">
           <div style="font-size:11px;color:#6b7280;margin-bottom:4px">结果：</div>
           <div style="display:flex;gap:8px;align-items:flex-start">
-            <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 50px">
-              <button id="openlink-tool-insert" style="width:50px;height:50px;padding:0;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">插入</button>
-              <button id="openlink-tool-copy" style="width:50px;height:50px;padding:0;background:transparent;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">复制</button>
+            <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 60px">
+              <button id="openlink-tool-insert" style="width:60px;height:50px;padding:0;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">插入</button>
+              <button id="openlink-tool-copy" style="width:60px;height:50px;padding:0;background:transparent;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">复制</button>
             </div>
             <pre id="openlink-tool-result" style="flex:1;margin:0;padding:10px;background:#0f1117;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:106px;overflow-y:auto;color:#cdd6f4;min-height:106px;box-sizing:border-box"></pre>
           </div>
@@ -1042,6 +1046,43 @@ function showSettingsDialog() {
     (document.getElementById('openlink-tool-input') as HTMLTextAreaElement).value = '';
     chrome.storage.local.remove(TOOL_INPUT_KEY);
     document.getElementById('openlink-tool-result-wrap')!.style.display = 'none';
+  });
+
+  // ── [最新ai回复] 兜底按钮 ──
+  // 注入拦截偶尔漏抓 (DeepSeek 偶发响应结构变更), 这个按钮从 DOM 重新捞最近一条
+  // AI 助手消息, 把里面的 <tool>...</tool> XML 填回 textarea (跟手动粘贴等价).
+  document.getElementById('openlink-tool-fetch-latest')!.addEventListener('click', () => {
+    const resultBox = document.getElementById('openlink-tool-result')!;
+    const resultWrap = document.getElementById('openlink-tool-result-wrap')!;
+    const show = (text: string, color: string) => {
+      resultWrap.style.display = 'block';
+      resultBox.style.color = color;
+      resultBox.textContent = text;
+    };
+
+    const sel = getSiteConfig().responseSelector;
+    if (!sel) {
+      show('⚠ 当前站点未配置 responseSelector, 无法抓取', '#fbbf24');
+      return;
+    }
+    const nodes = document.querySelectorAll(sel);
+    if (nodes.length === 0) {
+      show('⚠ 没找到 AI 助手消息 (' + sel + ')', '#fbbf24');
+      return;
+    }
+    const last = nodes[nodes.length - 1];
+    // 用 textContent 而不是 innerHTML: 避免把渲染过的子节点 (含转义/截断) 误带进来,
+    // 直接拿底层文本, 更接近原始流式响应.
+    const text = (last.textContent || '').replace(/\\"/g, '"');
+    const match = text.match(/<tool(?:\s[^>]*)?>[\s\S]*?<\/tool(?:_call)?>/);
+    if (!match) {
+      show('⚠ 最近一条 AI 回复里没找到 <tool> XML', '#fbbf24');
+      return;
+    }
+    toolInputEl.value = match[0];
+    // 同步触发持久化 (input 事件由程序设置 value 不会自动 dispatch)
+    chrome.storage.local.set({ [TOOL_INPUT_KEY]: toolInputEl.value });
+    show('✅ 已提取工具调用 (来源: 最近 AI 回复)', '#a6e3a1');
   });
 
   // ── 复制 / 插入 工具结果 ──
