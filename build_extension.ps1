@@ -38,4 +38,5 @@ try {
     }
 } finally { Pop-Location -StackName openlink-build }
 
-pause
+Write-Host "Done. Window closing in 3 seconds..." -ForegroundColor DarkGray
+Start-Sleep -Seconds 3
