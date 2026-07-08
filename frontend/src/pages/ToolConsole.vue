@@ -102,15 +102,20 @@ onMounted(() => { toolsStore.loadTools() })
 }
 
 .tool-btn {
-  padding: 8px 12px;
+  width: 50px;
+  height: 50px;
+  padding: 0;
   background: transparent;
   color: var(--color-text);
   border: none;
   border-radius: 6px;
   font-size: 13px;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
   font-family: 'Cascadia Code', 'Fira Code', monospace;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .tool-btn:hover { background: rgba(255,255,255,0.04); }

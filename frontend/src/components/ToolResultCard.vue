@@ -7,7 +7,7 @@
       <span v-if="result.stopStream" class="stop-badge">🛑 Stop</span>
     </div>
 
-    <pre v-if="result.output" class="result-output">{{ result.output }}</pre>
+    <textarea v-if="result.output" class="result-output json-input" :value="editableOutput" @input="editableOutput = ($event.target as HTMLTextAreaElement).value" rows="10"></textarea>
 
     <div v-if="result.error" class="result-error">
       {{ result.error }}
@@ -20,11 +20,18 @@
 </template>
 
 <script setup lang="ts">
+import { ref, watch } from 'vue'
 import type { ToolResponse } from '@/types'
 
-defineProps<{
+const props = defineProps<{
   result: ToolResponse
 }>()
+
+const editableOutput = ref(props.result.output || '')
+
+watch(() => props.result.output, (newVal) => {
+  editableOutput.value = newVal || ''
+})
 </script>
 
 <style scoped>

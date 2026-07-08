@@ -1,7 +1,7 @@
 <template>
   <div class="app-layout">
     <Navbar />
-    <div class="app-body">
+    <div class="app-body" style="cursor: default;">
       <aside class="sidebar">
         <StatusIndicator />
         <nav class="sidebar-nav">
