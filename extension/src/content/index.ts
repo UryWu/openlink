@@ -776,14 +776,14 @@ function showSettingsDialog() {
           <textarea id="openlink-tool-input" placeholder='&lt;tool name="list_dir"&gt;\n  &lt;parameter name="path"&gt;.&lt;/parameter&gt;\n&lt;/tool&gt;'
             style="flex:1;height:166px;padding:8px 10px;background:#0f1117;color:#e1e3ec;border:1px solid #2a2d3a;border-radius:6px;font-family:monospace;font-size:12px;box-sizing:border-box;outline:none"></textarea>
         </div>
+        <div style="display:flex;align-items:center;justify-content:flex-end;margin-top:6px">
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#9aa0a8;cursor:pointer">
+            <input id="openlink-tool-auto-insert" type="checkbox" style="margin:0">
+            自动插入到 AI 对话框
+          </label>
+        </div>
         <div id="openlink-tool-result-wrap" style="display:none;margin-top:12px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-            <span style="font-size:11px;color:#6b7280">结果：</span>
-            <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#9aa0a8;cursor:pointer">
-              <input id="openlink-tool-auto-insert" type="checkbox" style="margin:0">
-              自动插入到 AI 对话框
-            </label>
-          </div>
+          <div style="font-size:11px;color:#6b7280;margin-bottom:4px">结果：</div>
           <div style="display:flex;gap:8px;align-items:flex-start">
             <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 50px">
               <button id="openlink-tool-insert" style="width:50px;height:50px;padding:0;background:#1677ff;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center">插入</button>
