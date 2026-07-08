@@ -235,9 +235,9 @@ def test_error_response_survives_full_chain():
 
 ## 6. 后续行动清单
 
-- [ ] 把上述端到端测试加进 `backend/tests/`
-- [ ] 同样模式检查 `backend/app/tools/` 下其他 11 个工具（write_file / edit / list_dir / glob / grep / exec_cmd / web_fetch / question / skill / todo_write / invalid），是否都返回了带上下文的错误信息
-- [ ] `executor.py` 的 reminder 设计可以提一个 type-level 约束：所有工具返回的 `ToolResult` 在 error 时 `output` 必须为 `None` 或 `""`（用 Pydantic validator 强制），防止以后又有工具返回奇怪的 error 响应被 reminder 污染
+- [x] 把上述端到端测试加进 `backend/tests/`
+- [x] 同样模式检查 `backend/app/tools/` 下其他 11 个工具（write_file / edit / list_dir / glob / grep / exec_cmd / web_fetch / question / skill / todo_write / invalid），是否都返回了带上下文的错误信息
+- [x] `executor.py` 的 reminder 设计可以提一个 type-level 约束：所有工具返回的 `ToolResult` 在 error 时 `output` 必须为 `None` 或 `""`（用 Pydantic validator 强制），防止以后又有工具返回奇怪的 error 响应被 reminder 污染
 
 ---
 
