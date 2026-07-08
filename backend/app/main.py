@@ -35,6 +35,12 @@ async def lifespan(app: FastAPI):
     _app_config = AppConfig()
     if args.root_dir:
         _app_config.root_dir = args.root_dir
+    else:
+        # Project convention: the backend is always run from backend/, and the
+        # user-facing root is the repo root (cwd's parent). Without this
+        # normalization, paths like "backend/app/..." would resolve to
+        # <backend>/backend/app/... (double-backend).
+        _app_config.root_dir = os.path.abspath(os.path.join(os.getcwd(), ".."))
     if args.port:
         _app_config.port = args.port
     if args.timeout:
