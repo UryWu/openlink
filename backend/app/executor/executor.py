@@ -147,10 +147,14 @@ class Executor:
         )
 
         # Inject identity reminder (mirrors Go logic)
-        if self._call_count % 20 == 0:
-            resp.output += "\n\n" + _build_init_prompt(self.config)
-        else:
-            resp.output += _REMINDER
+        # Skip on error: resp.output may be "" and resp.error carries the
+        # actual failure reason. Appending the reminder would make the
+        # extension display "[系统提示] ..." instead of the error.
+        if result.status != "error":
+            if self._call_count % 20 == 0:
+                resp.output += "\n\n" + _build_init_prompt(self.config)
+            else:
+                resp.output += _REMINDER
 
         return resp
 

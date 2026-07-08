@@ -57,8 +57,23 @@ class ReadFileTool(BaseTool):
         try:
             with open(abs_path, "r", encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
+        except FileNotFoundError:
+            return ToolResult(
+                status="error",
+                error=f"文件不存在: {raw_path} (resolved: {abs_path})",
+            )
+        except IsADirectoryError:
+            return ToolResult(
+                status="error",
+                error=f"路径是目录而非文件: {raw_path}",
+            )
+        except PermissionError:
+            return ToolResult(
+                status="error",
+                error=f"无权限读取: {raw_path}",
+            )
         except OSError as e:
-            return ToolResult(status="error", error=str(e))
+            return ToolResult(status="error", error=f"读取失败 {raw_path}: {e}")
 
         if offset < 1:
             offset = 1
