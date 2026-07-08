@@ -98,7 +98,19 @@ function tryParseToolJSON(raw: string): any | null {
   // Each `v` string is a tiny text slice. Concatenate them so the tool tag
   // regex sees `<tool name="...">...</tool>` as a single contiguous string.
   // Returns null if the body doesn't look like DeepSeek SSE (no `data:` lines).
-  function reassembleSSEFragments(body: string): string | null {
+  // Returns two reassembly candidates, or null if the body doesn't look like
+  // DeepSeek SSE.
+  //   - tightJoin: `v` deltas joined with empty string (preserves any newlines
+  //                that survived INSIDE individual deltas — usually correct).
+  //   - lineJoin:  `v` deltas joined with '\n' (recovers the SSE block
+  //                boundary as a content separator when the wire deltas
+  //                themselves contain no newlines — fixes the case where
+  //                the AI emits a multi-line <parameter> but the deltas
+  //                strip line breaks, leaving the plugin's edit tool
+  //                unable to find old_string in the real file).
+  // The dedup set in scanText handles overlap; whichever variant contains
+  // a complete <tool>...</tool> block wins.
+  function reassembleSSEFragments(body: string): { tightJoin: string; lineJoin: string } | null {
     if (!body.includes('data:')) return null;
     const lines = body.split('\n');
     const parts: string[] = [];
@@ -130,7 +142,8 @@ function tryParseToolJSON(raw: string): any | null {
         }
       } catch { /* not JSON, skip */ }
     }
-    return foundAny ? parts.join('') : null;
+    if (!foundAny) return null;
+    return { tightJoin: parts.join(''), lineJoin: parts.join('\n') };
   }
 
   // ── 1. fetch interception (streaming response body) ─────────────────────
@@ -223,8 +236,13 @@ function tryParseToolJSON(raw: string): any | null {
           try {
             const reassembled = reassembleSSEFragments(rt);
             if (reassembled !== null) {
-              debugLog('[OpenLink] reassembled SSE:', reassembled.length, 'chars');
-              scanText(reassembled);
+              // Scan both join variants — tight preserves any newlines inside
+              // deltas, line-joined recovers SSE block boundaries as separators
+              // when the wire stripped them. scanText's dedup set suppresses
+              // duplicate <tool> blocks.
+              debugLog('[OpenLink] reassembled SSE:', reassembled.tightJoin.length, '/', reassembled.lineJoin.length, 'chars');
+              try { scanText(reassembled.tightJoin); } catch (e) { /* ignore */ }
+              try { scanText(reassembled.lineJoin); } catch (e) { /* ignore */ }
             }
           } catch (e) { /* ignore */ }
         }

@@ -29,6 +29,10 @@ class QuestionTool(BaseTool):
         question: str = ctx.args["question"]
         options = ctx.args.get("options", [])
 
+        # Add "Ignore All" option if there are options
+        if options:
+            options = list(options) + ["忽略全部"]
+
         parts = ["[需要您的输入]\n\n", question]
 
         if options:
