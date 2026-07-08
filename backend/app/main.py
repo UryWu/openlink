@@ -1,4 +1,4 @@
-"""FastAPI application entry point — mirrors cmd/server/main.go."""
+"""FastAPI application entry point for openlink."""
 
 import argparse
 import os
