@@ -1017,25 +1017,39 @@ function showSettingsDialog() {
     try {
       // normalize \" → " so pasted-from-source XML parses
       const normalized = raw.replace(/\\"/g, '"');
-      const toolCall = parseXmlToolCall(normalized);
-      if (!toolCall) {
+      // 支持多条 <tool>: AI 一次发多个工具调用时逐条执行, 结果按顺序拼接.
+      const xmlMatches = Array.from(normalized.matchAll(/<tool(?:\s[^>]*)?>[\s\S]*?<\/tool(?:_call)?>/g));
+      if (xmlMatches.length === 0) {
         resultWrap.style.display = 'block';
         resultBox.textContent = '⚠ 无法解析工具调用 XML，请检查格式\n\n原始输入：\n' + raw;
         resultBox.style.color = '#fbbf24';
         return;
       }
-      const result = await executeToolCallRaw(toolCall);
+      const results: string[] = [];
+      let hadError = false;
+      for (const m of xmlMatches) {
+        const toolCall = parseXmlToolCall(m[0]);
+        if (!toolCall) {
+          results.push(`⚠ 无法解析 XML 段:\n${m[0]}`);
+          hadError = true;
+          continue;
+        }
+        const r = await executeToolCallRaw(toolCall);
+        const isErr = r.startsWith('[OpenLink') || r.includes('错误');
+        if (isErr) hadError = true;
+        results.push(`[${toolCall.name}]\n${r}`);
+      }
       resultWrap.style.display = 'block';
-      const isError = result.startsWith('[OpenLink') || result.includes('错误');
-      resultBox.style.color = isError ? '#f87171' : '#a6e3a1';
-      resultBox.textContent = result;
+      const combined = results.join('\n\n---\n\n');
+      resultBox.style.color = hadError ? '#f87171' : '#a6e3a1';
+      resultBox.textContent = combined;
 
       // 自动插入到 AI 对话框 (跟 [插入] 按钮行为一致, 跟随 AutoExecute 决定是否自动提交)
-      if (autoInsertCb.checked && !isError) {
+      if (autoInsertCb.checked && !hadError) {
         const { autoExecute } = await chrome.storage.local.get(['autoExecute']);
         const autoSubmit = autoExecute !== false;
-        fillAndSend(result, autoSubmit);
-        showToast(autoSubmit ? '✅ 已自动插入并提交' : '✅ 已自动插入到 AI 输入框');
+        fillAndSend(combined, autoSubmit);
+        showToast(autoSubmit ? `✅ 已自动插入并提交 (${xmlMatches.length} 个)` : `✅ 已自动插入到 AI 输入框 (${xmlMatches.length} 个)`);
       }
     } finally {
       execBtn.disabled = false;
@@ -1074,15 +1088,17 @@ function showSettingsDialog() {
     // 用 textContent 而不是 innerHTML: 避免把渲染过的子节点 (含转义/截断) 误带进来,
     // 直接拿底层文本, 更接近原始流式响应.
     const text = (last.textContent || '').replace(/\\"/g, '"');
-    const match = text.match(/<tool(?:\s[^>]*)?>[\s\S]*?<\/tool(?:_call)?>/);
-    if (!match) {
+    // matchAll + g flag: AI 一次发多个 <tool> 时全部抓出来 (如 read_file + list_dir + ...).
+    // 非贪婪 + 边界确保不会跨段匹配.
+    const matches = Array.from(text.matchAll(/<tool(?:\s[^>]*)?>[\s\S]*?<\/tool(?:_call)?>/g));
+    if (matches.length === 0) {
       show('⚠ 最近一条 AI 回复里没找到 <tool> XML', '#fbbf24');
       return;
     }
-    toolInputEl.value = match[0];
+    toolInputEl.value = matches.map((m) => m[0]).join('\n');
     // 同步触发持久化 (input 事件由程序设置 value 不会自动 dispatch)
     chrome.storage.local.set({ [TOOL_INPUT_KEY]: toolInputEl.value });
-    show('✅ 已提取工具调用 (来源: 最近 AI 回复)', '#a6e3a1');
+    show(`✅ 已提取 ${matches.length} 个工具调用 (来源: 最近 AI 回复)`, '#a6e3a1');
   });
 
   // ── 复制 / 插入 工具结果 ──
