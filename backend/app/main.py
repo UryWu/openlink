@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="openlink",
-    version="1.2.0",
+    version="1.3.0",
     lifespan=lifespan,
 )
 

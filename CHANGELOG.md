@@ -7,6 +7,34 @@
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-08
+
+### Added
+- **扩展 ⚙️ 弹窗添加"工具命令"标签页 + 工具输入面板**（`extension/src/content/index.ts`）：第二个面板内含文本框可输入或粘贴 `<tool>` XML，按 [执行] 直接 POST `/exec`，结果回显在下方。
+- **工具结果区"自动插入到 AI 对话框"勾选框**（`id="openlink-tool-auto-insert"`）：持久化到 `chrome.storage.local`，与已勾选同步样式默认蓝色。
+- **工具命令面板新增"最新ai回复"按钮**（`id="openlink-tool-fetch-latest"`）：注入拦截偶尔漏抓时（DeepSeek 偶发响应结构变更）兜底，从 DOM 重新提取最近一条 AI 助手消息里的 `<tool>` XML，按站点的 `responseSelector` 抓取。
+- **工具命令输入框内容持久化**（`TOOL_INPUT_KEY = 'openlink-tool-input'`）：关闭弹窗再打开仍保留执行完的输入，仅 [清空] 按钮同时清 storage。
+- **执行处理器支持多条 `<tool>` 调用**：`text.matchAll(/.../g)` + `Array.from` 一次抓所有 XML 段，逐条 POST `/exec`，结果按顺序用 `---` 拼接显示。
+- **DeepSeek `responseSelector`** 加入 `getSiteConfig`：`.ds-markdown.ds-assistant-message-main-content`，给"最新ai回复"兜底按钮提供 DOM 锚点。
+- **⚙️ 弹窗支持 8 方向 resize + 尺寸持久化**（`SETTINGS_SIZE_KEY = 'openlink-settings-dialog-size'`）：四角 + 四边各一个 handle，鼠标拖拽实时改 `width/height/left/top`，mouseup 时落盘。
+
+### Changed
+- **工具命令面板按钮列宽 50px → 60px**：容纳"最新ai回复"四字，工具列 + 结果列两边的"执行 / 清空 / 最新ai回复 / 插入 / 复制"按钮统一。
+- **"最新ai回复"的提示改用 `showToast` 浮窗**：原来会写入结果框（跟 [执行] 重复占用空间），现在走右下角瞬时提示，3 秒自动消失。
+- **"自动插入到 AI 对话框"复选框上移到结果区外**：上一版嵌在结果 wrap 里，要执行命令后才出现；现在常驻，弹窗初始就可见。
+- **"插入"按钮改为蓝色**：和"执行"按钮同色（`#1677ff`），主从关系更清晰；之前是灰色边框容易被忽视。
+
+### Fixed
+- **后端工具错误响应被 `_REMINDER` 覆盖**（`backend/app/executor/executor.py`）：`output = "" + reminder` 是 truthy 字符串，让扩展端的 `result.output || result.error || ...` fallback 链直接返回 `[系统提示]...`，错误信息全丢。改为只在 `status != "error"` 时追加 reminder。
+- **`read_file` 文件不存在时返回明确错误信息**（`backend/app/tools/read_file.py`）：拆分 `OSError` 为 `FileNotFoundError` / `IsADirectoryError` / `PermissionError` / 兜底 `OSError`，每条都带原始路径 + sandbox 解析后的绝对路径，让 AI 能自助纠错。
+- **后端 `root_dir` 双重 backend 路径拼接**（`backend/app/main.py`）：lifespan 里 cwd 默认 `os.getcwd()` 时算成 backend 目录，用户传 `"backend/app/..."` 会拼成 `<backend>/backend/app/...`。改为 `os.path.abspath(os.path.join(os.getcwd(), ".."))` 显式 normalize 到仓库根。
+- **`main.py` docstring 去掉过时的 Go 路径引用**：之前是 `"""FastAPI application entry point — mirrors cmd/server/main.go."""`，Go 实现早已清掉，留着只会在搜索时产生误导。
+- **`build_extension.ps1` 自动关闭等待时间 3 秒 → 2 秒**：构建脚本结尾的 `Start-Sleep` 缩短，避免正常完成时多等 1 秒。
+
+### Documentation
+- **`docs/tool-error-response.md`**（248 行）：commit `3564945` 的开发复盘，三层数据模型（`ToolResult` → `ToolResponse` → JS `||` 链）逐层衰减表 + 两文件 diff 解释 + 端到端 curl 验证 + 5 条可推广教训。
+- **`docs/sites/deepseek-adapt.md`**：DeepSeek 站点适配全流程文档，含 XHR/SSE/正则修复、关键死循环 bug 复盘、调试开关约定、给后续适配者的 checklist。
+
 ## [1.2.0] - 2026-07-07
 
 ### Added
