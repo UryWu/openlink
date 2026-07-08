@@ -170,6 +170,19 @@ function tryParseToolJSON(raw: string): any | null {
             scanText(text);
             controller.enqueue(value);
           }
+          // After the stream ends, also try the SSE fragment reassembly
+          // (DeepSeek streams via fetch, not XHR). The XHR path does this
+          // inline in its readystatechange handler; the fetch path needs
+          // it on stream close. scanText's per-conv dedup set suppresses
+          // any <tool> blocks already seen in the per-chunk scans above.
+          try {
+            const reassembled = reassembleSSEFragments(buffer);
+            if (reassembled !== null) {
+              debugLog('[OpenLink] reassembled SSE (fetch):', reassembled.tightJoin.length, '/', reassembled.lineJoin.length, 'chars');
+              try { scanText(reassembled.tightJoin); } catch (e) { /* ignore */ }
+              try { scanText(reassembled.lineJoin); } catch (e) { /* ignore */ }
+            }
+          } catch (e) { /* ignore */ }
           controller.close();
         }
       });
