@@ -1,4 +1,4 @@
-"""POST /auth — mirrors server.go handleAuth."""
+"""POST /auth — verify the bearer token."""
 
 import secrets
 
@@ -24,7 +24,7 @@ async def auth(credentials: HTTPAuthorizationCredentials | None = Depends(_auth_
     expected = cfg.token
 
     token = credentials.credentials if credentials else ""
-    # Constant-time comparison matching Go's subtle.ConstantTimeCompare
+    # Constant-time comparison to prevent timing side channels
     if len(token) != len(expected) or not secrets.compare_digest(token, expected):
         return AuthResponse(valid=False)
     return AuthResponse(valid=True)

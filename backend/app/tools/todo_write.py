@@ -1,4 +1,4 @@
-"""Write task list to .todos.json — mirrors internal/tool/todo_write.go."""
+"""Write task list to .todos.json."""
 
 import json
 from pathlib import Path

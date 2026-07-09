@@ -65,7 +65,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — identical to Go: allow all origins, methods, headers
+# CORS — allow all origins, methods, headers
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

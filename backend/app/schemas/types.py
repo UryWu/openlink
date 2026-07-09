@@ -1,4 +1,4 @@
-"""Pydantic models matching Go internal/types/types.go."""
+"""Pydantic models for tool request/response and runtime config."""
 
 from typing import Any, Optional
 

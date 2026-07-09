@@ -1,4 +1,4 @@
-"""POST /exec — mirrors server.go handleExec."""
+"""POST /exec — run a tool and return its result."""
 
 from fastapi import APIRouter, Depends
 
@@ -16,7 +16,8 @@ def _get_executor():
 def _fix_tab_newlines(args: dict) -> dict:
     """Fix AI model errors that write \\n as \\t in edit tool calls.
 
-    Mirrors Go's fixTabNewlines in server.go.
+    Some LLMs encode newlines as tabs; expand them so the edit tool's
+    substring replacer can find a match in the real file.
     """
     if "old_string" in args and isinstance(args["old_string"], str):
         old = args["old_string"]
@@ -32,7 +33,7 @@ def _fix_tab_newlines(args: dict) -> dict:
 async def exec_tool(req: ToolRequest):
     executor = _get_executor()
 
-    # Apply tab→newline fix for edit tool (matching Go server behavior)
+    # Apply tab→newline fix for edit tool
     if req.name == "edit":
         req.args = _fix_tab_newlines(req.args)
 

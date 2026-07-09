@@ -1,4 +1,4 @@
-"""Execute shell command in sandbox — mirrors internal/tool/exec_cmd.go."""
+"""Execute shell command in sandbox."""
 
 import asyncio
 import os
@@ -40,7 +40,7 @@ class ExecCmdTool(BaseTool):
         cmd: str = ctx.args.get("command") or ctx.args.get("cmd", "")
         timeout = ctx.config.timeout
 
-        # Determine shell — mirrors Go's getShell()
+        # Determine shell for the current platform
         if sys.platform == "win32":
             comspec = os.environ.get("COMSPEC", "cmd.exe")
             shell, flag = comspec, "/C"

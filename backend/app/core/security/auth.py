@@ -1,4 +1,4 @@
-"""Token-based authentication — mirrors internal/security/auth.go."""
+"""Token-based authentication."""
 
 import json
 import os
@@ -28,7 +28,7 @@ def set_server_token(token: str):
 def load_or_create_token() -> str:
     """Read token from ~/.openlink/settings.json or generate a new one.
 
-    Mirrors Go's LoadOrCreateToken() — 32 random bytes → 64 hex chars.
+    Tokens are 32 random bytes encoded as 64 hex chars.
     """
     OPENLINK_DIR.mkdir(parents=True, exist_ok=True)
     if SETTINGS_FILE.exists():
@@ -61,6 +61,6 @@ async def verify_token(
 
     token = credentials.credentials
     expected = _server_token
-    # Constant-time comparison matching Go's subtle.ConstantTimeCompare
+    # Constant-time comparison to prevent timing side channels
     if len(token) != len(expected) or not secrets.compare_digest(token, expected):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="unauthorized")

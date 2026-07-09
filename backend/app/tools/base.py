@@ -1,4 +1,4 @@
-"""Abstract tool interface — mirrors internal/tool/tool.go."""
+"""Abstract tool interface and shared result types."""
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -25,7 +25,7 @@ class ToolResult:
 
 
 class BaseTool(ABC):
-    """Abstract base for all tools — mirrors Go's Tool interface."""
+    """Abstract base for all tools."""
 
     @property
     @abstractmethod

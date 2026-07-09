@@ -1,4 +1,4 @@
-"""Regex file content search — mirrors internal/tool/grep.go."""
+"""Regex file content search."""
 
 import asyncio
 import os
@@ -25,7 +25,7 @@ class GrepTool(BaseTool):
         return {
             "pattern": "string (required) - regex pattern to search",
             "path": "string (optional) - directory to search (default: root)",
-            "include": "string (optional) - file glob filter, e.g. *.go",
+            "include": "string (optional) - file glob filter, e.g. *.py",
         }
 
     def validate(self, args: dict) -> str | None:
@@ -87,7 +87,7 @@ class GrepTool(BaseTool):
         return self._format_lines(lines)
 
     async def _grep_native(self, pattern: str, search_path: str, include: str | None) -> str:
-        """Native Python grep walk — mirrors Go's grepNative()."""
+        """Native Python grep walk (ripgrep not assumed installed)."""
         try:
             re_compiled = re.compile(pattern)
         except re.error as e:

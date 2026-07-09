@@ -1,4 +1,4 @@
-"""GET /health — mirrors server.go handleHealth."""
+"""GET /health — liveness + version probe."""
 
 from fastapi import APIRouter
 

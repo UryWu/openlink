@@ -1,4 +1,4 @@
-"""Output truncation — mirrors internal/tool/truncate.go."""
+"""Output truncation."""
 
 import os
 from datetime import datetime

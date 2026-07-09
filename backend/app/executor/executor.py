@@ -1,4 +1,4 @@
-"""Tool dispatch and execution — mirrors internal/executor/executor.go."""
+"""Tool dispatch and execution."""
 
 import platform
 import os
@@ -30,7 +30,6 @@ def _build_system_info(config: AppConfig) -> str:
 def _build_init_prompt(config: AppConfig) -> str:
     """Read and render the init prompt with system info and skills.
 
-    Mirrors Go's handlePrompt logic.
     Searches multiple candidate paths so the prompt can live either next
     to the package (backend/prompts/) or at the repo root (prompts/).
     """
@@ -75,7 +74,8 @@ def _build_init_prompt(config: AppConfig) -> str:
 class Executor:
     """Dispatches tool requests to registered tools.
 
-    Mirrors Go's executor with identity reminder injection.
+    Injects an identity reminder into successful responses so the LLM
+    keeps its role context across many tool calls.
     """
 
     def __init__(self, config: AppConfig):
@@ -113,7 +113,7 @@ class Executor:
         self.registry.register(TodoWriteTool())
 
     async def execute(self, req: ToolRequest) -> ToolResponse:
-        """Execute a tool request — mirrors Go's Execute()."""
+        """Execute a tool request."""
         self._call_count += 1
 
         # Lookup tool (exact match first, then case-insensitive)
@@ -146,7 +146,7 @@ class Executor:
             stopStream=result.stop_stream,
         )
 
-        # Inject identity reminder (mirrors Go logic)
+        # Inject identity reminder.
         # Skip on error: resp.output may be "" and resp.error carries the
         # actual failure reason. Appending the reminder would make the
         # extension display "[系统提示] ..." instead of the error.

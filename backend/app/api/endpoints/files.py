@@ -1,4 +1,4 @@
-"""GET /files?q= — mirrors server.go handleListFiles."""
+"""GET /files?q= — list files under root_dir matching the query."""
 
 import os
 from pathlib import Path

@@ -1,4 +1,4 @@
-"""Read file contents with offset/limit — mirrors internal/tool/read_file.go."""
+"""Read file contents with offset/limit."""
 
 import os
 

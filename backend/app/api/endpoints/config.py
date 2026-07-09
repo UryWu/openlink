@@ -1,4 +1,4 @@
-"""GET /config — mirrors server.go handleConfig."""
+"""GET /config — return current server config."""
 
 from fastapi import APIRouter, Depends
 

@@ -1,4 +1,4 @@
-"""SKILL.md file scanner — mirrors internal/skill/loader.go."""
+"""SKILL.md file scanner."""
 
 import os
 from pathlib import Path
@@ -22,10 +22,7 @@ def _skill_dirs(root_dir: str) -> list[Path]:
 
 
 def _parse_skill_md(path: Path) -> dict[str, Any]:
-    """Parse YAML-like frontmatter from a SKILL.md file.
-
-    Mirrors Go's parse() in skill/loader.go.
-    """
+    """Parse YAML-like frontmatter from a SKILL.md file."""
     result: dict[str, Any] = {
         "name": path.parent.name,
         "description": "",
@@ -59,10 +56,7 @@ def _parse_skill_md(path: Path) -> dict[str, Any]:
 
 
 def load_infos(root_dir: str) -> list[dict[str, Any]]:
-    """Scan all skill directories and return deduplicated info list.
-
-    Mirrors Go's LoadInfos().
-    """
+    """Scan all skill directories and return deduplicated info list."""
     seen: set[str] = set()
     infos: list[dict[str, Any]] = []
 
@@ -95,10 +89,7 @@ def load_infos(root_dir: str) -> list[dict[str, Any]]:
 
 
 def get_skill(root_dir: str, name: str) -> dict[str, Any] | None:
-    """Find a skill by name (case-insensitive). Returns None if not found.
-
-    Mirrors Go's Get().
-    """
+    """Find a skill by name (case-insensitive). Returns None if not found."""
     if "/" in name or "\\" in name or ".." in name:
         return None
 
@@ -111,7 +102,6 @@ def get_skill(root_dir: str, name: str) -> dict[str, Any] | None:
 def find_skill(root_dir: str, name: str) -> dict[str, Any] | None:
     """Find a skill file by name, searching both flat files and subdirectories.
 
-    Mirrors Go's FindSkill().
     Returns info dict with 'content', 'dir', 'location' keys, or None.
     """
     root = Path(root_dir)

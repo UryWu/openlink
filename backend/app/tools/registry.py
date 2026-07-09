@@ -1,4 +1,4 @@
-"""Thread-safe tool registry — mirrors internal/tool/registry.go."""
+"""Thread-safe tool registry."""
 
 from __future__ import annotations
 

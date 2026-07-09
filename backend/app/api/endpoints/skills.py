@@ -1,4 +1,4 @@
-"""GET /skills — mirrors server.go handleListSkills."""
+"""GET /skills — list available skills."""
 
 from fastapi import APIRouter, Depends
 

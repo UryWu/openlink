@@ -1,4 +1,4 @@
-"""Fallback for unknown tool calls — mirrors internal/tool/invalid.go."""
+"""Fallback for unknown tool calls (returns a clear error to the LLM)."""
 
 from app.tools.base import BaseTool, ToolContext, ToolResult
 

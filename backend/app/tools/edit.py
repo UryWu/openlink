@@ -1,4 +1,4 @@
-"""String replacement in files — mirrors internal/tool/edit.go.
+"""String replacement in files.
 
 Implements 10 replacer strategies in cascade for robust AI-generated string matching.
 """
@@ -11,7 +11,7 @@ from pathlib import Path
 from app.core.security.sandbox import safe_path, safe_abs_path
 from app.tools.base import BaseTool, ToolContext, ToolResult
 
-# Thresholds matching Go constants
+# Confidence thresholds for the multi-candidate replacer chain
 SINGLE_CANDIDATE_THRESHOLD = 0.0
 MULTIPLE_CANDIDATES_THRESHOLD = 0.3
 
@@ -23,7 +23,7 @@ def normalize_line_endings(s: str) -> str:
 
 
 def levenshtein(a: str, b: str) -> int:
-    """Standard Levenshtein distance — mirrors Go's implementation."""
+    """Standard Levenshtein distance."""
     if not a:
         return len(b)
     if not b:
@@ -69,7 +69,7 @@ def line_trimmed_replacer(content: str, find: str) -> list[str]:
                 break
         if not match:
             continue
-        # Compute byte offset matching Go's logic
+        # Compute byte offset of the matched block
         match_start = sum(len(original_lines[k]) + 1 for k in range(i))
         match_end = match_start + sum(
             len(original_lines[i + k]) + (1 if k < len(search_lines) - 1 else 0)
@@ -228,7 +228,7 @@ _escape_re = re.compile(r"\\(n|t|r|'|\"|`|\\|\n|\$)")
 
 
 def _unescape_string(s: str) -> str:
-    """Unescape common escape sequences — mirrors Go's unescapeString."""
+    """Unescape common escape sequences (\\n, \\t, \\\", etc.)."""
     def _replace(m: re.Match) -> str:
         ch = m.group(1)
         return {
@@ -342,7 +342,7 @@ def multi_occurrence_replacer(content: str, find: str) -> list[str]:
 # ── Main replace dispatcher ──────────────────────────────────────────────
 
 def _replace(content: str, old_string: str, new_string: str, replace_all: bool) -> tuple[str, str | None]:
-    """Core replacement logic — mirrors Go's replace().
+    """Core replacement logic.
 
     Returns (new_content, error_string). On success error_string is None.
     """

@@ -1,4 +1,4 @@
-"""List directory contents — mirrors internal/tool/list_dir.go."""
+"""List directory contents."""
 
 import os
 from pathlib import Path

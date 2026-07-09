@@ -1,4 +1,4 @@
-"""Fetch web page content via HTTP — mirrors internal/tool/web_fetch.go."""
+"""Fetch web page content via HTTP."""
 
 import ipaddress
 import re

@@ -1,4 +1,4 @@
-"""Glob file matching — mirrors internal/tool/glob.go."""
+"""Glob file matching."""
 
 import os
 from pathlib import Path
@@ -59,7 +59,7 @@ class GlobTool(BaseTool):
                 if len(results) >= _MAX_RESULTS:
                     break
 
-        # Sort by modification time (newest first) — matching Go behavior
+        # Sort by modification time (newest first)
         def _mtime(p: Path) -> float:
             try:
                 return p.stat().st_mtime

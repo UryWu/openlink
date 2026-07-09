@@ -1,4 +1,4 @@
-"""Ask user question — mirrors internal/tool/question.go."""
+"""Ask user question."""
 
 from app.tools.base import BaseTool, ToolContext, ToolResult
 

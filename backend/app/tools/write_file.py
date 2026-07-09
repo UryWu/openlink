@@ -1,4 +1,4 @@
-"""Write content to file — mirrors internal/tool/write_file.go."""
+"""Write content to file."""
 
 import os
 from pathlib import Path
@@ -44,7 +44,7 @@ class WriteFileTool(BaseTool):
         except ValueError as e:
             return ToolResult(status="error", error=str(e))
 
-        # Ensure parent directory exists (mirrors Go's os.MkdirAll with 0755)
+        # Ensure parent directory exists (mode 0755)
         Path(abs_path).parent.mkdir(parents=True, exist_ok=True)
 
         try:

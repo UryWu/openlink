@@ -1,4 +1,4 @@
-"""Load and list skills — mirrors internal/tool/skill.go."""
+"""Load and list skills."""
 
 import os
 from pathlib import Path

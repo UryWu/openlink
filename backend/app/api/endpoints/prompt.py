@@ -1,4 +1,4 @@
-"""GET /prompt — mirrors server.go handlePrompt."""
+"""GET /prompt — return the init prompt (with system info + skills list)."""
 
 from fastapi import APIRouter, Depends, Response
 

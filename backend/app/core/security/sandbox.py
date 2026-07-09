@@ -1,6 +1,5 @@
 """Sandbox path validation and dangerous-command filtering.
 
-Mirrors internal/security/sandbox.go:
   - SafePath:        relative path resolved against rootDir, must stay inside
   - SafeAbsPath:     absolute (or ~) path must be inside one of allowedRoots
   - IsDangerousCommand: blocks rm -rf / mkfs / sudo etc.
@@ -81,7 +80,8 @@ def safe_abs_path(target_path: str, allowed_roots: Sequence[str]) -> str:
 def is_dangerous_command(cmd: str) -> bool:
     """Check whether a shell command is dangerous to execute.
 
-    Mirrors Go's word-boundary matching logic exactly.
+    Uses word-boundary matching so patterns like 'rm' don't trigger on
+    substrings (e.g. 'gorm', 'farm').
     """
     lower = cmd.lower()
 

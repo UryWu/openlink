@@ -1,4 +1,4 @@
-"""GET /tools — mirrors server.go handleListTools."""
+"""GET /tools — list registered tools and their parameter schemas."""
 
 from fastapi import APIRouter, Depends
 
