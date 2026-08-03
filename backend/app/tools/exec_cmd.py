@@ -2,7 +2,6 @@
 
 import asyncio
 import os
-import platform
 import sys
 
 from app.core.security.sandbox import is_dangerous_command
@@ -51,19 +50,40 @@ class ExecCmdTool(BaseTool):
             proc = await asyncio.create_subprocess_exec(
                 shell, flag, cmd,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
+                stderr=asyncio.subprocess.PIPE,
                 cwd=ctx.config.root_dir,
             )
+
+            output_lines = []
+
+            async def read_stream(stream, prefix=""):
+                while True:
+                    line = await stream.readline()
+                    if not line:
+                        break
+                    decoded = line.decode("utf-8", errors="replace")
+                    output_lines.append(decoded)
+                    if prefix:
+                        print(f"[{prefix}] {decoded}", end="")
+                    else:
+                        print(decoded, end="")
+                    sys.stdout.flush()
+
             try:
-                stdout, _ = await asyncio.wait_for(
-                    proc.communicate(), timeout=timeout
+                await asyncio.wait_for(
+                    asyncio.gather(
+                        read_stream(proc.stdout, "stdout"),
+                        read_stream(proc.stderr, "stderr"),
+                    ),
+                    timeout=timeout,
                 )
+                await proc.wait()
             except asyncio.TimeoutError:
                 proc.kill()
                 await proc.wait()
                 return ToolResult(status="error", error="execution timeout")
 
-            output_str = stdout.decode("utf-8", errors="replace") if stdout else ""
+            output_str = "".join(output_lines)
             truncated, _ = truncate(output_str)
 
             if proc.returncode != 0:
