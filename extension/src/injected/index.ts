@@ -62,11 +62,26 @@ function parseXmlToolCall(raw: string): any | null {
     looseKeys.push(key);
   }
   const result: any = { name, args, callId };
+
+  // 收集所有需要提醒的语法问题，合并成一条 _syntaxWarning
+  const warnings: string[] = [];
+
+  // 多余闭合标签：<tool> 已正常闭合，但 raw 中还残留额外的 </tool> 或 </tool_call>
+  const closeMatches = s.match(TOOL_CLOSE_RE) || [];
+  if (closeMatches.length > 1) {
+    warnings.push("检测到多余的闭合标签（</tool> 或 </tool_call> 重复出现，应为 1 个）。请只保留一个闭合标签，勿重复书写。");
+  }
+
   if (looseKeys.length > 0) {
-    result._syntaxWarning =
-      `⚠ 参数标签语法不规范：${looseKeys.join('、')}。` +
+    warnings.push(
+      `参数标签语法不规范：${looseKeys.join('、')}。` +
       `正确格式为 <parameter name="键名">值</parameter>，` +
-      `请勿写成 <键名>值</键名> 或漏写 parameter name=。`;
+      `请勿写成 <键名>值</键名> 或漏写 parameter name=。`
+    );
+  }
+
+  if (warnings.length > 0) {
+    result._syntaxWarning = '⚠ ' + warnings.join(' ');
   }
   return result;
 }
@@ -127,6 +142,8 @@ function tryParseToolJSON(raw: string): any | null {
   const RE_TOOL = /<tool(?:\s[^>]*)?>[\s\S]*?<\/tool(?:_call)?>/g;
 
   function scanText(text: string) {
+    // 检测多余闭合标签：先记录再合并，便于附加提醒
+    const hadDuplicateClose = /(<\/(?:tool|tool_call)>)\s*(?:\1)+/.test(text);
     if (!text) return;
     // 检测 DSML 乱码标记：不再静默删除，交由 parseXmlToolCall 统一报错提示
     text = text.replace(/(<\/(?:tool|tool_call)>)\s*(?:\1)+/g, '$1');
@@ -141,6 +158,11 @@ function tryParseToolJSON(raw: string): any | null {
       console.log('[OpenLink] 检测到工具调用:', full);
       const inner = full.replace(/^<tool[^>]*>|<\/tool(?:_call)?>$/g, '').trim();
       const toolCall = parseXmlToolCall(full) || tryParseToolJSON(inner);
+      if (toolCall && !toolCall._syntaxError && hadDuplicateClose) {
+        toolCall._syntaxWarning = toolCall._syntaxWarning
+          ? "⚠ 检测到多余的闭合标签（</tool> 或 </tool_call> 重复出现，应为 1 个）。请只保留一个闭合标签。" + ' ' + toolCall._syntaxWarning
+          : "⚠ 检测到多余的闭合标签（</tool> 或 </tool_call> 重复出现，应为 1 个）。请只保留一个闭合标签。";
+      }
       if (toolCall && toolCall._syntaxError) {
         // 标签语法错误（DSML 乱码 / 标签不闭合）：回报警告，不执行
         console.warn('[OpenLink] 工具调用语法错误:', toolCall._syntaxError);
