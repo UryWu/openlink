@@ -23,6 +23,15 @@ function parseXmlToolCall(raw: string): any | null {
   const paramRe = /<parameter\s+name="([^"]+)">([\s\S]*?)<\/parameter>/g;
   let m;
   while ((m = paramRe.exec(s)) !== null) args[m[1]] = m[2];
+  const KNOWN_KEYS = ['path', 'old_string', 'new_string', 'content', 'mode',
+    'command', 'pattern', 'include', 'url', 'format', 'question', 'skill',
+    'todos', 'name', 'value', 'query', 'replace_all'];
+  const looseRe = /<(?:parameter\s+name="?)?([A-Za-z_][A-Za-z0-9_]*)"?>([\s\S]*?)<\/(?:parameter|([A-Za-z_][A-Za-z0-9_]*))>/g;
+  while ((m = looseRe.exec(s)) !== null) {
+    const key = m[1];
+    if (!KNOWN_KEYS.includes(key) || key in args) continue;
+    args[key] = m[2];
+  }
   return { name, args, callId };
 }
 

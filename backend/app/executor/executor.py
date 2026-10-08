@@ -146,12 +146,16 @@ class Executor:
             stopStream=result.stop_stream,
         )
 
+        # 参数标签语法警告：前端解析到不规范标签时透传，回显给 AI 提醒正确写法。
+        if getattr(req, "syntax_warning", None):
+            resp.output = f"{req.syntax_warning}\n\n{resp.output}"
+
         # Inject identity reminder.
         # Skip on error: resp.output may be "" and resp.error carries the
         # actual failure reason. Appending the reminder would make the
         # extension display "[系统提示] ..." instead of the error.
         if result.status != "error":
-            if self._call_count % 20 == 0:
+            if self._call_count % 30 == 0:
                 resp.output += "\n\n" + _build_init_prompt(self.config)
             else:
                 resp.output += _REMINDER

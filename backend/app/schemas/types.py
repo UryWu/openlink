@@ -11,6 +11,9 @@ class ToolRequest(BaseModel):
     args: dict[str, Any] = {}
     arguments: Optional[dict[str, Any]] = None  # alias accepted by API
     reason: Optional[str] = None
+    syntax_warning: Optional[str] = Field(default=None, alias="_syntaxWarning")
+
+    model_config = {"populate_by_name": True}
 
     @model_validator(mode="after")
     def merge_arguments(self):
