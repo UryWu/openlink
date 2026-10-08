@@ -172,6 +172,12 @@ def run():
     parser.add_argument("-timeout", "--timeout", type=int, default=60, help="command timeout")
     args = parser.parse_args()
 
+    from app.core.logging_setup import setup_file_logging
+    _log_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    _log_path = setup_file_logging(_log_root)
+    if _log_path:
+        print(f"[openlink] logging to {_log_path}", file=sys.__stdout__)
+
     _configure_uvicorn_logging()
 
     uvicorn.run(

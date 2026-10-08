@@ -39,6 +39,9 @@ extension/dist/
 # Top-level build outputs
 dist/
 
+# Runtime logs
+logs/
+
 # IDE
 .vscode/
 .idea/
