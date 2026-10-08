@@ -27,12 +27,21 @@ function parseXmlToolCall(raw: string): any | null {
     'command', 'pattern', 'include', 'url', 'format', 'question', 'skill',
     'todos', 'name', 'value', 'query', 'replace_all'];
   const looseRe = /<(?:parameter\s+name="?)?([A-Za-z_][A-Za-z0-9_]*)"?>([\s\S]*?)<\/(?:parameter|([A-Za-z_][A-Za-z0-9_]*))>/g;
+  const looseKeys: string[] = [];
   while ((m = looseRe.exec(s)) !== null) {
     const key = m[1];
     if (!KNOWN_KEYS.includes(key) || key in args) continue;
     args[key] = m[2];
+    looseKeys.push(key);
   }
-  return { name, args, callId };
+  const result: any = { name, args, callId };
+  if (looseKeys.length > 0) {
+    result._syntaxWarning =
+      `⚠ 参数标签语法不规范：${looseKeys.join('、')}。` +
+      `正确格式为 <parameter name="键名">值</parameter>，` +
+      `请勿写成 <键名>值</键名> 或漏写 parameter name=。`;
+  }
+  return result;
 }
 
 function tryParseToolJSON(raw: string): any | null {
