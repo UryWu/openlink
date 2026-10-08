@@ -1,0 +1,29 @@
+网页ai回复：
+<tool name="edit">
+  <parameter name="path">frontend/src/components/SearchSuggestions.vue</parameter>
+  <parameter name="old_string">// 处理建议选择
+const handleSelect = (value: string) => {
+  inputValue.value = value
+  emit('update:modelValue', value)
+  emit('select', value)
+  suggestions.value = [] // 选择后清空建议
+}</parameter>
+  <parameter name="new_string">// 处理建议选择
+const handleSelect = (value: string) => {
+  inputValue.value = value
+  emit('update:modelValue', value)
+  emit('select', value)
+  // 主动失焦关闭下拉
+  const input = document.querySelector('.el-autocomplete .el-input__inner') as HTMLInputElement
+  if (input) {
+    input.blur()
+  }
+  suggestions.value = []
+}</parameter>
+</tool>
+
+后端收到后回复：
+[edit]
+Could not find old_string in the file. It must match exactly, including whitespace, indentation, and line endings.
+
+为什么无法搜索到？

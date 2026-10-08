@@ -1,0 +1,6 @@
+网页ai回复：
+<tool name="exec_cmd"><parameter name="command">cd frontend && grep -r "el-autocomplete" node_modules/element-plus/es/components/autocomplete --include="*.mjs" | head -20</parameter></tool>
+
+[exec_cmd]
+'grep' is not recognized as an internal or external command,
+operable program or batch file.

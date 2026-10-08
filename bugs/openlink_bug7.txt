@@ -1,0 +1,16 @@
+我在G:\Projects\projects_python\html2markdown项目下执行：
+<tool name="exec_cmd">
+  <parameter name="command">uv add requests beautifulsoup4 html2text lxml --no-sync</parameter>
+</tool>
+
+后端执行后返回：
+[exec_cmd]
+command: uv add requests beautifulsoup4 html2text lxml --no-sync
+
+warning: `VIRTUAL_ENV=G:\Projects\projects_ai\openlink\backend\.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+Resolved 11 packages in 2ms
+
+
+[系统提示] 请记住你是 openlink，一个交互式 CLI 工具，主要用于软件工程任务。
+
+uv检测的位置错了，项目不在G:\Projects\projects_ai\openlink\backend\，而在G:\Projects\projects_python\html2markdown。
