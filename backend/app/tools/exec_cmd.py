@@ -25,6 +25,11 @@ def _write_temp_bat(cmd: str) -> str:
 class ExecCmdTool(BaseTool):
     def __init__(self, config):
         self._config = config
+        self._seq = 0
+
+    def _next_id(self) -> int:
+        self._seq += 1
+        return self._seq
 
     @property
     def name(self) -> str:
@@ -67,6 +72,13 @@ class ExecCmdTool(BaseTool):
         for var in ("VIRTUAL_ENV", "VIRTUAL_ENV_PROMPT", "UV_PROJECT_ENVIRONMENT", "CONDA_PREFIX"):
             env.pop(var, None)
 
+        def _now() -> str:
+            return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        job_id = self._next_id()
+        print(f"{_now()} === [cmd #{job_id}] start: {cmd} ===")
+        sys.stdout.flush()
+
         try:
             if bat_path is not None:
                 spawn_args = (cmd_arg,)
@@ -90,7 +102,7 @@ class ExecCmdTool(BaseTool):
                         break
                     decoded = line.decode("utf-8", errors="replace")
                     output_lines.append(decoded)
-                    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    ts = _now()
                     if prefix:
                         print(f"{ts} [{prefix}] {decoded}", end="")
                     else:
@@ -109,21 +121,31 @@ class ExecCmdTool(BaseTool):
             except asyncio.TimeoutError:
                 proc.kill()
                 await proc.wait()
+                print(f"{_now()} === [cmd #{job_id}] done: timeout ===")
+                sys.stdout.flush()
                 return ToolResult(status="error", error="execution timeout")
 
             output_str = "".join(output_lines)
             truncated, _ = truncate(output_str)
 
             if proc.returncode != 0:
+                print(f"{_now()} === [cmd #{job_id}] done: exit {proc.returncode} ===")
+                sys.stdout.flush()
                 return ToolResult(status="error", error=f"exit code {proc.returncode}", output=truncated)
 
+            print(f"{_now()} === [cmd #{job_id}] done: exit 0 ===")
+            sys.stdout.flush()
             if not truncated:
                 truncated = "empty"
             return ToolResult(output=f"command: {cmd}\n\n{truncated}")
 
         except FileNotFoundError:
+            print(f"{_now()} === [done] error: shell not found ===")
+            sys.stdout.flush()
             return ToolResult(status="error", error=f"shell not found: {shell}")
         except OSError as e:
+            print(f"{_now()} === [done] error: {e} ===")
+            sys.stdout.flush()
             return ToolResult(status="error", error=str(e))
         finally:
             if bat_path is not None:
