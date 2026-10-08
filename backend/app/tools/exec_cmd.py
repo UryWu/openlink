@@ -3,6 +3,7 @@
 import asyncio
 import os
 import sys
+from datetime import datetime
 
 from app.core.security.sandbox import is_dangerous_command
 from app.tools.base import BaseTool, ToolContext, ToolResult
@@ -89,10 +90,11 @@ class ExecCmdTool(BaseTool):
                         break
                     decoded = line.decode("utf-8", errors="replace")
                     output_lines.append(decoded)
+                    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     if prefix:
-                        print(f"[{prefix}] {decoded}", end="")
+                        print(f"{ts} [{prefix}] {decoded}", end="")
                     else:
-                        print(decoded, end="")
+                        print(f"{ts} {decoded}", end="")
                     sys.stdout.flush()
 
             try:

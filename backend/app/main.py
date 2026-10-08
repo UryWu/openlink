@@ -1,6 +1,7 @@
 """FastAPI application entry point for openlink."""
 
 import argparse
+import logging
 import os
 import sys
 from contextlib import asynccontextmanager
@@ -122,6 +123,47 @@ if _HAS_FRONTEND:
 # When run() is fixed to wire CLI args through to AppConfig, restore the
 # [project.scripts] entry in pyproject.toml and this stub can go.
 
+def _configure_uvicorn_logging():
+    """Prepend a timestamp to uvicorn's default access/error log lines."""
+    datefmt = "%Y-%m-%d %H:%M:%S"
+    default_fmt = "%(asctime)s %(levelname)s: %(message)s"
+
+    class _UvicornAccessFormatter(logging.Formatter):
+        _REASONS = {
+            200: "OK", 201: "Created", 204: "No Content",
+            301: "Moved Permanently", 302: "Found", 304: "Not Modified",
+            400: "Bad Request", 401: "Unauthorized", 403: "Forbidden",
+            404: "Not Found", 405: "Method Not Allowed", 422: "Unprocessable Entity",
+            500: "Internal Server Error", 502: "Bad Gateway", 503: "Service Unavailable",
+        }
+
+        def format(self, record: logging.LogRecord) -> str:
+            msg = record.getMessage()
+            status = record.args[-1] if record.args else None
+            reason = self._REASONS.get(status) if isinstance(status, int) else None
+            if reason:
+                msg = f"{msg} {reason}"
+            return f"{self.formatTime(record, datefmt)} {record.levelname}: {msg}"
+
+    for name, fmt in (
+        ("uvicorn", default_fmt),
+        ("uvicorn.error", default_fmt),
+    ):
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter(fmt, datefmt=datefmt))
+        logger = logging.getLogger(name)
+        logger.handlers = [handler]
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
+
+    access_handler = logging.StreamHandler(sys.stdout)
+    access_handler.setFormatter(_UvicornAccessFormatter())
+    access_logger = logging.getLogger("uvicorn.access")
+    access_logger.handlers = [access_handler]
+    access_logger.setLevel(logging.INFO)
+    access_logger.propagate = False
+
+
 def run():
     """Entry point kept for `python -m app.main` direct invocation."""
     parser = argparse.ArgumentParser(description="openlink server")
@@ -130,11 +172,14 @@ def run():
     parser.add_argument("-timeout", "--timeout", type=int, default=60, help="command timeout")
     args = parser.parse_args()
 
+    _configure_uvicorn_logging()
+
     uvicorn.run(
         "app.main:app",
         host="127.0.0.1",
         port=args.port,
         reload=False,
+        log_config=None,
     )
 
 
