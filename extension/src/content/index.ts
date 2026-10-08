@@ -8,10 +8,24 @@ function getNativeSetter() {
   return Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
 }
 
+const TOOL_OPEN = '<' + 'tool';
+const TOOL_CLOSE = '<' + '/' + 'tool' + '>';
+const TOOL_CLOSE_RE = new RegExp('<' + '\\/' + '(?:tool|tool_call)' + '>', 'g');
+const TOOL_CLOSE_PLACEHOLDER = '\u0000TOOLCLOSE\u0000';
+
+function maskInnerToolCloses(text: string): string {
+  return text.replace(/(<parameter\s+name="[^"]+">)([\s\S]*?)(<\/parameter>)/g,
+    (_m, open, body, close) => open + body.replace(TOOL_CLOSE_RE, TOOL_CLOSE_PLACEHOLDER) + close);
+}
+
+function unmaskInnerToolCloses(text: string): string {
+  return text.split(TOOL_CLOSE_PLACEHOLDER).join(TOOL_CLOSE);
+}
+
 function parseXmlToolCall(raw: string): any | null {
   // DeepSeek sometimes emits tool tags with JSON-escaped quotes (\") in the
   // raw SSE body — normalize first so the regex sees plain ASCII quotes.
-  const s = raw.replace(/[\uff5c|]{2}\\s*DSML\\s*[\uff5c|]{2}/g, '').replace(/\\"/g, '"');
+  const s = unmaskInnerToolCloses(raw.replace(/[\uff5c|]{2}\\s*DSML\\s*[\uff5c|]{2}/g, '').replace(/\\"/g, '"'));
   const nameMatch = s.match(/^<tool\s+name="([^"]+)"(?:\s+call_id="([^"]+)")?/);
   if (!nameMatch) return null;
   const name = nameMatch[1];
@@ -304,6 +318,7 @@ function startDOMObserver(_responseSelector: string) {
   function scanText(text: string, sourceEl?: Element) {
     text = text.replace(/[\uff5c|]{2}\\s*DSML\\s*[\uff5c|]{2}/g, '');
     text = text.replace(/(<\/(?:tool|tool_call)>)\s*(?:\1)+/g, '$1');
+    text = maskInnerToolCloses(text);
     if (!text.includes('<tool')) return;
     TOOL_RE.lastIndex = 0;
     let match;
@@ -1020,6 +1035,7 @@ function showSettingsDialog() {
       // normalize \" → " so pasted-from-source XML parses
       let normalized = raw.replace(/\\"/g, '"');
       normalized = normalized.replace(/(<\/(?:tool|tool_call)>)\s*(?:\1)+/g, '$1');
+      normalized = maskInnerToolCloses(normalized);
       // 支持多条 <tool>: AI 一次发多个工具调用时逐条执行, 结果按顺序拼接.
       const xmlMatches = Array.from(normalized.matchAll(/<tool(?:\s[^>]*)?>[\s\S]*?<\/tool(?:_call)?>/g));
       if (xmlMatches.length === 0) {
@@ -1085,6 +1101,7 @@ function showSettingsDialog() {
     // 直接拿底层文本, 更接近原始流式响应.
     let text = (last.textContent || '').replace(/\\"/g, '"');
     text = text.replace(/(<\/(?:tool|tool_call)>)\s*(?:\1)+/g, '$1');
+    text = maskInnerToolCloses(text);
     // matchAll + g flag: AI 一次发多个 <tool> 时全部抓出来 (如 read_file + list_dir + ...).
     // 非贪婪 + 边界确保不会跨段匹配.
     const matches = Array.from(text.matchAll(/<tool(?:\s[^>]*)?>[\s\S]*?<\/tool(?:_call)?>/g));

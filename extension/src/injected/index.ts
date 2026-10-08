@@ -1,7 +1,20 @@
+const TOOL_CLOSE = '<' + '/' + 'tool' + '>';
+const TOOL_CLOSE_RE = new RegExp('<' + '\\/' + '(?:tool|tool_call)' + '>', 'g');
+const TOOL_CLOSE_PLACEHOLDER = '\u0000TOOLCLOSE\u0000';
+
+function maskInnerToolCloses(text: string): string {
+  return text.replace(/(<parameter\s+name="[^"]+">)([\s\S]*?)(<\/parameter>)/g,
+    (_m, open, body, close) => open + body.replace(TOOL_CLOSE_RE, TOOL_CLOSE_PLACEHOLDER) + close);
+}
+
+function unmaskInnerToolCloses(text: string): string {
+  return text.split(TOOL_CLOSE_PLACEHOLDER).join(TOOL_CLOSE);
+}
+
 function parseXmlToolCall(raw: string): any | null {
   // DeepSeek sometimes emits tool tags with JSON-escaped quotes (\") in the
   // raw SSE body — normalize first so the regex sees plain ASCII quotes.
-  const s = raw.replace(/[\uff5c|]{2}\\s*DSML\\s*[\uff5c|]{2}/g, '').replace(/\\"/g, '"');
+  const s = unmaskInnerToolCloses(raw.replace(/[\uff5c|]{2}\\s*DSML\\s*[\uff5c|]{2}/g, '').replace(/\\"/g, '"'));
   const nameMatch = s.match(/^<tool\s+name="([^"]+)"(?:\s+call_id="([^"]+)")?/);
   if (!nameMatch) return null;
   const name = nameMatch[1];
@@ -72,6 +85,7 @@ function tryParseToolJSON(raw: string): any | null {
     if (!text) return;
     text = text.replace(/[\uff5c|]{2}\\s*DSML\\s*[\uff5c|]{2}/g, '');
     text = text.replace(/(<\/(?:tool|tool_call)>)\s*(?:\1)+/g, '$1');
+    text = maskInnerToolCloses(text);
     if (!text.includes('<tool')) return;          // fast-path skip
     let match: RegExpExecArray | null;
     while ((match = RE_TOOL.exec(text)) !== null) {
