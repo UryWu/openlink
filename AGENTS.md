@@ -98,22 +98,22 @@ Local Filesystem
 
 ### Supported AI Platforms
 
-| Platform | fillMethod | useObserver | Notes |
-|----------|-----------|-------------|-------|
-| Google AI Studio | value | true | Recommended; writes to System Instructions |
-| Google Gemini | execCommand | true | |
-| ChatGPT | prosemirror | true | |
-| 通义千问 (Qwen) | value | true | |
-| DeepSeek | paste | false | Uses injected.js |
-| Kimi | execCommand | false | |
-| Mistral | execCommand | false | |
-| Perplexity | execCommand | false | |
-| Arena.ai | value | true | |
-| OpenRouter | value | false | |
-| Grok | value | false | |
-| GitHub Copilot | value | false | |
-| t3.chat | value | false | |
-| z.ai | value | false | |
+| Platform         | fillMethod  | useObserver | Notes                                      |
+| ---------------- | ----------- | ----------- | ------------------------------------------ |
+| Google AI Studio | value       | true        | Recommended; writes to System Instructions |
+| Google Gemini    | execCommand | true        |                                            |
+| ChatGPT          | prosemirror | true        |                                            |
+| 通义千问 (Qwen)  | value       | true        |                                            |
+| DeepSeek         | paste       | false       | Uses injected.js                           |
+| Kimi             | execCommand | false       |                                            |
+| Mistral          | execCommand | false       |                                            |
+| Perplexity       | execCommand | false       |                                            |
+| Arena.ai         | value       | true        |                                            |
+| OpenRouter       | value       | false       |                                            |
+| Grok             | value       | false       |                                            |
+| GitHub Copilot   | value       | false       |                                            |
+| t3.chat          | value       | false       |                                            |
+| z.ai             | value       | false       |                                            |
 
 ---
 
@@ -376,6 +376,44 @@ class AIConversation(Base):
 ```bash
 uv run python -c 'import sys; sys.stdout.reconfigure(encoding="utf-8"); print("后面是执行的命令")'
 ```
+
+---
+
+## 6. 工具调用标签格式（易错点，务必核对）
+
+在使用 `edit` 工具时，必须严格保证 XML 参数标签的**名称与闭合**正确，否则会收到
+`old_string is required` 之类的报错。本项目开发过程中已多次因手写标签出错而反复重试，
+特此记录，作为强制检查项。
+
+### 正确格式
+
+```
+<tool name="edit" call_id="a3f9k">
+  <parameter name="path">文件路径</parameter>
+  <parameter name="old_string">被替换的原文本</parameter>
+  <parameter name="new_string">替换后的新文本</parameter>
+</tool>
+```
+
+### 强制检查清单（每次调用 edit / write_file 前逐项核对）
+
+1. 每个参数都写成 `<parameter name="键名">值</parameter>`：
+   - `parameter` 与 `name` 之间有一个**空格**；
+   - `name=` 后是**双引号包裹**的键名；
+   - 键名后紧跟 `>`，不能漏掉或写成 `name="键名>`。
+2. 键名拼写正确：`path`、`old_string`、`new_string`、`content`、`mode`。
+3. 每个参数标签都有独立的 `</parameter>` 闭合。
+4. `edit` 的 `old_string` 必须**逐字符**匹配文件中已存在的内容（含缩进、换行）。
+5. 不要凭记忆拼写标签；先写骨架再填内容，发送前再扫一遍。
+
+### 常见错误与后果
+
+| 错误写法                       | 后果                                               |
+| ------------------------------ | -------------------------------------------------- |
+| `<parameter name="old_string>` | 解析不到 `old_string`，报 `old_string is required` |
+| `<parameter name="new_string>` | 同上，报缺参数                                     |
+| 标签名与属性位置错乱           | 参数丢失或串味                                     |
+| 复制上一次的错误片段重试       | 错误循环，浪费时间                                 |
 
 ---
 
