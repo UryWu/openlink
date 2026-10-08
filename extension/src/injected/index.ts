@@ -11,12 +11,39 @@ function unmaskInnerToolCloses(text: string): string {
   return text.split(TOOL_CLOSE_PLACEHOLDER).join(TOOL_CLOSE);
 }
 
+// 检测文本中是否出现被污染的 DSML 标记（如  或 ）。
+// 这类标记是模型输出被平台注入的乱码，会让工具调用的参数标签错乱。
+// 返回匹配到的原始文本，未检测到则返回 null。
+function detectDSMLMarker(text: string): string | null {
+  const m = text.match(/[\uff5c|]{2}\s*DSML\s*[\uff5c|]{2}/);
+  return m ? m[0] : null;
+}
+
 function parseXmlToolCall(raw: string): any | null {
-  // DeepSeek sometimes emits tool tags with JSON-escaped quotes (\") in the
+  // 先检测 DSML 乱码标记：一旦出现，说明标签结构已被污染，
+  // 不再静默清洗，而是直接返回带警告的结果，让调用方提示用户。
+  const dsml = detectDSMLMarker(raw);
+  if (dsml) {
+    return {
+      _syntaxError:
+        `⚠ 检测到乱码标记（全角竖线×2 + DSML + 全角竖线×2），工具调用标签已被污染，无法可靠解析。` +
+        `请重新生成，并确保 <tool> / <parameter> 标签完整、不含此类乱码标记。` +
+        `检测到的原始标记：${JSON.stringify(dsml)}`,
+    };
+  }
+  // DeepSeek sometimes emits tool tags with JSON-escaped quotes (") in the
   // raw SSE body — normalize first so the regex sees plain ASCII quotes.
-  const s = unmaskInnerToolCloses(raw.replace(/[\uff5c|]{2}\\s*DSML\\s*[\uff5c|]{2}/g, '').replace(/\\"/g, '"'));
+  const s = unmaskInnerToolCloses(raw.replace(/\"/g, '"'));
   const nameMatch = s.match(/^<tool\s+name="([^"]+)"(?:\s+call_id="([^"]+)")?/);
-  if (!nameMatch) return null;
+  if (!nameMatch) {
+    // <tool> 开标签存在但 name 属性缺失或不完整，通常是闭合标签多余/缺失导致。
+    return {
+      _syntaxError:
+        `⚠ 工具调用标签不完整或格式错误：未找到合法的 <tool name="..."> 开标签。` +
+        `请检查是否多写了 </tool> 或漏写了开标签的 name 属性。` +
+        `原文片段：${raw.slice(0, 120)}`,
+    };
+  }
   const name = nameMatch[1];
   const callId = nameMatch[2] || null;
   const args: Record<string, string> = {};
@@ -101,7 +128,7 @@ function tryParseToolJSON(raw: string): any | null {
 
   function scanText(text: string) {
     if (!text) return;
-    text = text.replace(/[\uff5c|]{2}\\s*DSML\\s*[\uff5c|]{2}/g, '');
+    // 检测 DSML 乱码标记：不再静默删除，交由 parseXmlToolCall 统一报错提示
     text = text.replace(/(<\/(?:tool|tool_call)>)\s*(?:\1)+/g, '$1');
     text = maskInnerToolCloses(text);
     if (!text.includes('<tool')) return;          // fast-path skip
@@ -114,11 +141,18 @@ function tryParseToolJSON(raw: string): any | null {
       console.log('[OpenLink] 检测到工具调用:', full);
       const inner = full.replace(/^<tool[^>]*>|<\/tool(?:_call)?>$/g, '').trim();
       const toolCall = parseXmlToolCall(full) || tryParseToolJSON(inner);
-      if (toolCall) {
+      if (toolCall && toolCall._syntaxError) {
+        // 标签语法错误（DSML 乱码 / 标签不闭合）：回报警告，不执行
+        console.warn('[OpenLink] 工具调用语法错误:', toolCall._syntaxError);
+        window.postMessage({type: 'TOOL_CALL', data: toolCall}, '*');
+      } else if (toolCall) {
         console.log('[OpenLink] 工具调用解析:', toolCall);
         window.postMessage({type: 'TOOL_CALL', data: toolCall}, '*');
       } else {
         console.warn('[OpenLink] 工具调用解析失败:', full);
+        window.postMessage({type: 'TOOL_CALL', data: {
+          _syntaxError: `⚠ 工具调用解析失败：标签结构无法识别。请检查 <tool> / <parameter> 标签是否完整闭合、是否多写了 </tool>。原文片段：${full.slice(0, 120)}`
+        }}, '*');
       }
     }
     RE_TOOL.lastIndex = 0;
