@@ -122,6 +122,20 @@ class ExecCmdTool(BaseTool):
         )
         sys.stdout.flush()
 
+        _clear_line = "\r\033[K" if _COLOR else ""
+
+        async def _spinner():
+            dots = (".", "..", "...")
+            i = 0
+            try:
+                while True:
+                    await asyncio.sleep(0.5)
+                    sys.stdout.write(f"\r{_c(dots[i % 3], _YELLOW)}")
+                    sys.stdout.flush()
+                    i += 1
+            except asyncio.CancelledError:
+                pass
+
         try:
             if bat_path is not None:
                 spawn_args = (cmd_arg,)
@@ -137,6 +151,7 @@ class ExecCmdTool(BaseTool):
             )
 
             output_lines = []
+            spinner = asyncio.create_task(_spinner())
 
             async def read_stream(stream, prefix=""):
                 while True:
@@ -145,6 +160,8 @@ class ExecCmdTool(BaseTool):
                         break
                     decoded = line.decode("utf-8", errors="replace")
                     output_lines.append(decoded)
+                    if _clear_line:
+                        sys.stdout.write(_clear_line)
                     ts = _c(_now(), _DIM)
                     if prefix == "stdout":
                         tag = _c("[stdout]", _GREEN)
@@ -173,6 +190,9 @@ class ExecCmdTool(BaseTool):
             except asyncio.TimeoutError:
                 proc.kill()
                 await proc.wait()
+                spinner.cancel()
+                if _clear_line:
+                    sys.stdout.write(_clear_line)
                 print(
                     f"{_c(_now(), _DIM)} "
                     f"{_c(f'=== [cmd #{job_id}] done:', _RED, bold=True)} "
@@ -180,6 +200,10 @@ class ExecCmdTool(BaseTool):
                 )
                 sys.stdout.flush()
                 return ToolResult(status="error", error="execution timeout")
+
+            spinner.cancel()
+            if _clear_line:
+                sys.stdout.write(_clear_line)
 
             output_str = "".join(output_lines)
             truncated, _ = truncate(output_str)
@@ -220,6 +244,9 @@ class ExecCmdTool(BaseTool):
             sys.stdout.flush()
             return ToolResult(status="error", error=str(e))
         finally:
+            sp = locals().get("spinner")
+            if sp is not None and not sp.done():
+                sp.cancel()
             if bat_path is not None:
                 try:
                     os.remove(bat_path)
