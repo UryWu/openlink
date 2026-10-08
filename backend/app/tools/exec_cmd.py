@@ -10,6 +10,44 @@ from app.tools.base import BaseTool, ToolContext, ToolResult
 from app.utils.truncate import truncate
 
 
+def _enable_ansi() -> bool:
+    """Enable VT processing on Windows consoles; return True if color is usable."""
+    if os.environ.get("NO_COLOR"):
+        return False
+    if sys.platform != "win32":
+        return True
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(-11)
+        mode = ctypes.c_uint32()
+        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return False
+        return bool(kernel32.SetConsoleMode(handle, mode.value | 0x0004))
+    except Exception:
+        return False
+
+
+_COLOR = _enable_ansi()
+
+_RESET = "\033[0m" if _COLOR else ""
+_BOLD = "\033[1m" if _COLOR else ""
+_DIM = "\033[2m" if _COLOR else ""
+_RED = "\033[31m" if _COLOR else ""
+_GREEN = "\033[32m" if _COLOR else ""
+_YELLOW = "\033[33m" if _COLOR else ""
+_BLUE = "\033[34m" if _COLOR else ""
+_MAGENTA = "\033[35m" if _COLOR else ""
+_CYAN = "\033[36m" if _COLOR else ""
+
+
+def _c(text: str, color: str, bold: bool = False) -> str:
+    if not _COLOR:
+        return text
+    prefix = (_BOLD if bold else "") + color
+    return f"{prefix}{text}{_RESET}"
+
+
 def _write_temp_bat(cmd: str) -> str:
     import tempfile
     fd, path = tempfile.mkstemp(suffix=".bat", prefix="openlink_")
@@ -76,7 +114,12 @@ class ExecCmdTool(BaseTool):
             return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         job_id = self._next_id()
-        print(f"{_now()} === [cmd #{job_id}] start: {cmd} ===")
+        print(
+            f"{_c(_now(), _DIM)} "
+            f"{_c(f'=== [cmd #{job_id}]', _CYAN, bold=True)} "
+            f"{_c('start:', _CYAN)} {_c(cmd, _BOLD)} "
+            f"{_c('===', _CYAN)}"
+        )
         sys.stdout.flush()
 
         try:
@@ -102,11 +145,20 @@ class ExecCmdTool(BaseTool):
                         break
                     decoded = line.decode("utf-8", errors="replace")
                     output_lines.append(decoded)
-                    ts = _now()
-                    if prefix:
-                        print(f"{ts} [{prefix}] {decoded}", end="")
+                    ts = _c(_now(), _DIM)
+                    if prefix == "stdout":
+                        tag = _c("[stdout]", _GREEN)
+                    elif prefix == "stderr":
+                        tag = _c("[stderr]", _RED, bold=True)
+                    elif prefix:
+                        tag = _c(f"[{prefix}]", _YELLOW)
                     else:
-                        print(f"{ts} {decoded}", end="")
+                        tag = ""
+                    body = _c(decoded, _RED) if prefix == "stderr" else decoded
+                    if tag:
+                        print(f"{ts} {tag} {body}", end="")
+                    else:
+                        print(f"{ts} {body}", end="")
                     sys.stdout.flush()
 
             try:
@@ -121,7 +173,11 @@ class ExecCmdTool(BaseTool):
             except asyncio.TimeoutError:
                 proc.kill()
                 await proc.wait()
-                print(f"{_now()} === [cmd #{job_id}] done: timeout ===")
+                print(
+                    f"{_c(_now(), _DIM)} "
+                    f"{_c(f'=== [cmd #{job_id}] done:', _RED, bold=True)} "
+                    f"{_c('timeout', _RED, bold=True)} {_c('===', _RED)}"
+                )
                 sys.stdout.flush()
                 return ToolResult(status="error", error="execution timeout")
 
@@ -129,22 +185,38 @@ class ExecCmdTool(BaseTool):
             truncated, _ = truncate(output_str)
 
             if proc.returncode != 0:
-                print(f"{_now()} === [cmd #{job_id}] done: exit {proc.returncode} ===")
+                print(
+                    f"{_c(_now(), _DIM)} "
+                    f"{_c(f'=== [cmd #{job_id}] done:', _RED, bold=True)} "
+                    f"{_c(f'exit {proc.returncode}', _RED, bold=True)} {_c('===', _RED)}"
+                )
                 sys.stdout.flush()
                 return ToolResult(status="error", error=f"exit code {proc.returncode}", output=truncated)
 
-            print(f"{_now()} === [cmd #{job_id}] done: exit 0 ===")
+            print(
+                f"{_c(_now(), _DIM)} "
+                f"{_c(f'=== [cmd #{job_id}] done:', _GREEN, bold=True)} "
+                f"{_c('exit 0', _GREEN, bold=True)} {_c('===', _GREEN)}"
+            )
             sys.stdout.flush()
             if not truncated:
                 truncated = "empty"
             return ToolResult(output=f"command: {cmd}\n\n{truncated}")
 
         except FileNotFoundError:
-            print(f"{_now()} === [done] error: shell not found ===")
+            print(
+                f"{_c(_now(), _DIM)} "
+                f"{_c(f'=== [cmd #{job_id}] done:', _RED, bold=True)} "
+                f"{_c('error: shell not found', _RED)} {_c('===', _RED)}"
+            )
             sys.stdout.flush()
             return ToolResult(status="error", error=f"shell not found: {shell}")
         except OSError as e:
-            print(f"{_now()} === [done] error: {e} ===")
+            print(
+                f"{_c(_now(), _DIM)} "
+                f"{_c(f'=== [cmd #{job_id}] done:', _RED, bold=True)} "
+                f"{_c(f'error: {e}', _RED)} {_c('===', _RED)}"
+            )
             sys.stdout.flush()
             return ToolResult(status="error", error=str(e))
         finally:
