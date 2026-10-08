@@ -7,6 +7,26 @@
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-09
+
+### Added
+- **扩展容错解析错误参数标签**（`extension/src/content/index.ts`、`extension/src/injected/index.ts`）：AI 漏写 `parameter name=`（写成 `<old_string>值</old_string>`）或漏闭合引号时，仍能从 XML 提取参数，避免整条参数丢失报 `old_string is required`。
+- **参数标签语法警告回显**：解析到不规范标签时生成 `_syntaxWarning`，经 `ToolRequest._syntaxWarning` 透传后端，由 `executor.execute` 拼进工具结果回显给 AI 提醒正确写法；网页工具卡片同步显示黄框警示用户。
+- **exec_cmd 控制台输出增强**（`backend/app/tools/exec_cmd.py`）：日志添加时间戳、按 stdout/stderr 着色、按命令分组并编号（`=== [cmd #N] start/done ===`）、执行期间显示动态进度点（`.`/`..`/`...`）。
+- **后端日志落盘**（`backend/app/core/logging_setup.py`）：stdout/stderr 镜像到 `logs/openlink_<时间戳>.log`（ANSI 剥离），超 50MB 自动清理最旧日志；`logs/` 已加 `.gitignore`。
+- **扩展支持 Kimi 抓取最新 AI 回复**（`extension/src/content/index.ts`）：`kimi.com` 加 `responseSelector: '.segment-container'`，`findResponseContainer` 补 `.segment-container` 类名。
+- **`docs/markdown-style-demo.md` 等文档整理**：`AGENTS.md` 与 `prompts/init_prompt.txt` 补充工具调用标签格式检查清单。
+
+### Fixed
+- **掩码参数值内的 `</tool>` 防止块被截断**（`extension/src/content/index.ts`、`extension/src/injected/index.ts`）：参数值含裸 `</tool>`（如 `node -e "...</tool>..."`）时非贪婪正则在参数值内提前闭合，导致后续参数丢失。解析前把参数值内的 `</tool>`/`</tool_call>` 掩码为占位符，提取完成后再还原。
+- **过滤重复闭合标签**（`extension/src/content/index.ts`）：`/(<\/(?:tool|tool_call)>)\s*(?:\1)+/g` 折叠连续重复的闭合标签。
+
+### Changed
+- **init prompt 注入频率 20 次 → 30 次**（`backend/app/executor/executor.py`）：减少长对话中整份 init prompt 回灌的噪音。
+
+### Documentation
+- **`docs/handoff-inner-tool-close-masking.md`**：参数值内 `</tool>` 掩码方案的交接待办文档。
+
 ## [1.3.0] - 2026-07-08
 
 ### Added
