@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -83,6 +84,33 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content={"status": "error", "error": str(exc)},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """请求体校验失败（如 JSON 畸形、字段缺失）时返回结构化错误。
+
+    默认 FastAPI 会返回 422 的裸 JSON，前端难以统一显示；
+    这里转成与 ToolResponse 一致的形态，并记录日志，
+    便于区分"请求畸变丢失"与"工具执行失败"。
+    """
+    try:
+        body = await request.body()
+        body_preview = body.decode("utf-8", errors="replace")[:300]
+    except Exception:
+        body_preview = "<unreadable>"
+    logging.getLogger("openlink.exec").warning(
+        "[exec] 请求校验失败: %s | body=%s", exc.errors(), body_preview
+    )
+    return JSONResponse(
+        status_code=422,
+        content={
+            "status": "error",
+            "error": f"⚠ 请求体格式错误，无法解析工具调用：{exc.errors()}",
+            "output": "",
+            "stopStream": False,
+        },
     )
 
 

@@ -277,7 +277,18 @@ async function executeToolCallRaw(toolCall: any): Promise<string> {
   if (!apiUrl) return '请先在插件中配置 API 地址';
   const headers: any = { 'Content-Type': 'application/json' };
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-  const response = await bgFetch(`${apiUrl}/exec`, { method: 'POST', headers, body: JSON.stringify(toolCall) });
+  // 发送前留痕：记录请求体，便于区分"未发出"与"发出未达"
+  const reqBody = JSON.stringify(toolCall);
+  const reqId = Math.random().toString(36).slice(2, 8);
+  console.log(`[OpenLink] → 发送 /exec #${reqId}:`, reqBody.slice(0, 200));
+  let response;
+  try {
+    response = await bgFetch(`${apiUrl}/exec`, { method: 'POST', headers, body: reqBody });
+  } catch (netErr) {
+    console.warn(`[OpenLink] ✗ /exec #${reqId} 网络错误:`, netErr);
+    return `[OpenLink 错误] 请求未能到达后端（网络错误/丢包），工具调用未执行。请求 #${reqId}。`;
+  }
+  console.log(`[OpenLink] ← /exec #${reqId} 响应: HTTP ${response.status}`);
   if (response.status === 401) return '认证失败，请在插件中重新输入 Token';
   if (!response.ok) return `[OpenLink 错误] HTTP ${response.status}`;
   const result = JSON.parse(response.body);
@@ -1476,11 +1487,29 @@ async function executeToolCall(toolCall: any) {
 
     if (!apiUrl) { fillAndSend('请先在插件中配置 API 地址', false); return; }
 
-    const response = await bgFetch(`${apiUrl}/exec`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(toolCall)
-    });
+    // 发送前留痕：记录请求体，便于区分"未发出"与"发出未达"
+    const reqBody = JSON.stringify(toolCall);
+    const reqId = Math.random().toString(36).slice(2, 8);
+    console.log(`[OpenLink] → 发送 /exec #${reqId}:`, reqBody.slice(0, 200));
+
+    let response;
+    try {
+      response = await bgFetch(`${apiUrl}/exec`, {
+        method: 'POST',
+        headers,
+        body: reqBody
+      });
+    } catch (netErr) {
+      // 网络层错误（连接被拒/超时/丢包）：明确提示"请求可能未到达后端"
+      console.warn(`[OpenLink] ✗ /exec #${reqId} 网络错误:`, netErr);
+      fillAndSend(
+        `[OpenLink 错误] 请求未能到达后端（网络错误/丢包），工具调用未执行。` +
+        `请求 #${reqId}。请检查本地服务是否运行、代理是否正常后重试。`,
+        false
+      );
+      return;
+    }
+    console.log(`[OpenLink] ← /exec #${reqId} 响应: HTTP ${response.status}`);
 
     if (response.status === 401) { fillAndSend('认证失败，请在插件中重新输入 Token', false); return; }
     if (!response.ok) { fillAndSend(`[OpenLink 错误] HTTP ${response.status}`, false); return; }
