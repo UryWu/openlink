@@ -1,7 +1,7 @@
 function parseXmlToolCall(raw: string): any | null {
   // DeepSeek sometimes emits tool tags with JSON-escaped quotes (\") in the
   // raw SSE body — normalize first so the regex sees plain ASCII quotes.
-  const s = raw.replace(/\\"/g, '"');
+  const s = raw.replace(/[\uff5c|]{2}\\s*DSML\\s*[\uff5c|]{2}/g, '').replace(/\\"/g, '"');
   const nameMatch = s.match(/^<tool\s+name="([^"]+)"(?:\s+call_id="([^"]+)")?/);
   if (!nameMatch) return null;
   const name = nameMatch[1];
@@ -70,6 +70,7 @@ function tryParseToolJSON(raw: string): any | null {
 
   function scanText(text: string) {
     if (!text) return;
+    text = text.replace(/[\uff5c|]{2}\\s*DSML\\s*[\uff5c|]{2}/g, '');
     if (!text.includes('<tool')) return;          // fast-path skip
     let match: RegExpExecArray | null;
     while ((match = RE_TOOL.exec(text)) !== null) {

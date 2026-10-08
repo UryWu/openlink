@@ -9,6 +9,18 @@ from app.tools.base import BaseTool, ToolContext, ToolResult
 from app.utils.truncate import truncate
 
 
+def _write_temp_bat(cmd: str) -> str:
+    import tempfile
+    fd, path = tempfile.mkstemp(suffix=".bat", prefix="openlink_")
+    os.close(fd)
+    body = cmd.encode("utf-8", errors="replace")
+    with open(path, "wb") as f:
+        f.write(b"@echo off\r\nchcp 65001 >nul\r\n")
+        f.write(body)
+        f.write(b"\r\n")
+    return path
+
+
 class ExecCmdTool(BaseTool):
     def __init__(self, config):
         self._config = config
@@ -40,18 +52,32 @@ class ExecCmdTool(BaseTool):
         timeout = ctx.config.timeout
 
         # Determine shell for the current platform
+        bat_path = None
         if sys.platform == "win32":
             comspec = os.environ.get("COMSPEC", "cmd.exe")
             shell, flag = comspec, "/C"
+            bat_path = _write_temp_bat(cmd)
+            cmd_arg = bat_path
         else:
             shell, flag = "sh", "-c"
+            cmd_arg = cmd
+
+        env = os.environ.copy()
+        for var in ("VIRTUAL_ENV", "VIRTUAL_ENV_PROMPT", "UV_PROJECT_ENVIRONMENT", "CONDA_PREFIX"):
+            env.pop(var, None)
 
         try:
+            if bat_path is not None:
+                spawn_args = (cmd_arg,)
+            else:
+                spawn_args = (shell, flag, cmd_arg)
+
             proc = await asyncio.create_subprocess_exec(
-                shell, flag, cmd,
+                *spawn_args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=ctx.config.root_dir,
+                env=env,
             )
 
             output_lines = []
@@ -97,3 +123,9 @@ class ExecCmdTool(BaseTool):
             return ToolResult(status="error", error=f"shell not found: {shell}")
         except OSError as e:
             return ToolResult(status="error", error=str(e))
+        finally:
+            if bat_path is not None:
+                try:
+                    os.remove(bat_path)
+                except OSError:
+                    pass
