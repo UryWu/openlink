@@ -86,7 +86,10 @@ function getSiteConfig(): SiteConfig {
   if (h.includes('x.com') || h.includes('grok.com'))
     return { editor: 'textarea[aria-label="Ask Grok anything"], textarea[placeholder="Ask anything"], textarea', sendBtn: 'button[aria-label="Submit"], button.send-button', stopBtn: null, fillMethod: 'value', useObserver: false };
   if (h.includes('kimi.com'))
-    return { editor: '.chat-input-editor[contenteditable="true"], div[contenteditable="true"][data-lexical-editor="true"]', sendBtn: '.send-button, button[aria-label*="Send"]', stopBtn: null, fillMethod: 'execCommand', useObserver: false };
+    // Kimi 的 AI 回复渲染在 .segment-container（内含 .segment-content / .markdown），
+    // 工具调用 XML 位于 .markdown 的 .paragraph 内。用 .segment-container 作为
+    // 抓取单元可覆盖整段回复。[最新ai回复] 兜底按钮依赖 responseSelector。
+    return { editor: '.chat-input-editor[contenteditable="true"], div[contenteditable="true"][data-lexical-editor="true"]', sendBtn: '.send-button, button[aria-label*="Send"]', stopBtn: null, fillMethod: 'execCommand', useObserver: false, responseSelector: '.segment-container' };
   if (h.includes('chat.mistral.ai'))
     return { editor: 'div.ProseMirror[contenteditable="true"]', sendBtn: '.ms-auto .flex.gap-2 button[type="submit"], button.bg-state-primary', stopBtn: null, fillMethod: 'execCommand', useObserver: false };
   if (h.includes('perplexity.ai'))
@@ -369,6 +372,7 @@ function startDOMObserver(_responseSelector: string) {
       if (tag === 'ms-chat-turn') return el;
       if (el.classList.contains('chat-response-message')) return el;
       if (el.classList.contains('prose')) return el;
+      if (el.classList.contains('segment-container')) return el;
       el = el.parentElement;
     }
     return null;
