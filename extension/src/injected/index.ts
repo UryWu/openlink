@@ -71,6 +71,7 @@ function tryParseToolJSON(raw: string): any | null {
   function scanText(text: string) {
     if (!text) return;
     text = text.replace(/[\uff5c|]{2}\\s*DSML\\s*[\uff5c|]{2}/g, '');
+    text = text.replace(/(<\/(?:tool|tool_call)>)\s*(?:\1)+/g, '$1');
     if (!text.includes('<tool')) return;          // fast-path skip
     let match: RegExpExecArray | null;
     while ((match = RE_TOOL.exec(text)) !== null) {

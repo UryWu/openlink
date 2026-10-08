@@ -303,6 +303,7 @@ function startDOMObserver(_responseSelector: string) {
 
   function scanText(text: string, sourceEl?: Element) {
     text = text.replace(/[\uff5c|]{2}\\s*DSML\\s*[\uff5c|]{2}/g, '');
+    text = text.replace(/(<\/(?:tool|tool_call)>)\s*(?:\1)+/g, '$1');
     if (!text.includes('<tool')) return;
     TOOL_RE.lastIndex = 0;
     let match;
@@ -1017,7 +1018,8 @@ function showSettingsDialog() {
     execBtn.textContent = '执行中...';
     try {
       // normalize \" → " so pasted-from-source XML parses
-      const normalized = raw.replace(/\\"/g, '"');
+      let normalized = raw.replace(/\\"/g, '"');
+      normalized = normalized.replace(/(<\/(?:tool|tool_call)>)\s*(?:\1)+/g, '$1');
       // 支持多条 <tool>: AI 一次发多个工具调用时逐条执行, 结果按顺序拼接.
       const xmlMatches = Array.from(normalized.matchAll(/<tool(?:\s[^>]*)?>[\s\S]*?<\/tool(?:_call)?>/g));
       if (xmlMatches.length === 0) {
@@ -1081,7 +1083,8 @@ function showSettingsDialog() {
     const last = nodes[nodes.length - 1];
     // 用 textContent 而不是 innerHTML: 避免把渲染过的子节点 (含转义/截断) 误带进来,
     // 直接拿底层文本, 更接近原始流式响应.
-    const text = (last.textContent || '').replace(/\\"/g, '"');
+    let text = (last.textContent || '').replace(/\\"/g, '"');
+    text = text.replace(/(<\/(?:tool|tool_call)>)\s*(?:\1)+/g, '$1');
     // matchAll + g flag: AI 一次发多个 <tool> 时全部抓出来 (如 read_file + list_dir + ...).
     // 非贪婪 + 边界确保不会跨段匹配.
     const matches = Array.from(text.matchAll(/<tool(?:\s[^>]*)?>[\s\S]*?<\/tool(?:_call)?>/g));
