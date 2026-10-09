@@ -29,6 +29,7 @@
         <div class="card"><div class="num">{{ fmt(store.stats.summary.inputTokens) }}</div><div class="lbl">输入 tokens</div></div>
         <div class="card"><div class="num">{{ fmt(store.stats.summary.outputTokens) }}</div><div class="lbl">输出 tokens</div></div>
         <div class="card"><div class="num">{{ fmt(store.stats.summary.totalTokens) }}</div><div class="lbl">总 tokens</div></div>
+        <div class="card"><div class="num">{{ cost(store.stats.summary.cost) }}</div><div class="lbl">总费用</div></div>
       </div>
 
       <h2>平台分布</h2>
@@ -36,7 +37,7 @@
         <div v-for="p in store.stats.byPlatform" :key="p.platform" class="bar-row">
           <span class="bar-label">{{ p.platform }}</span>
           <div class="bar-track"><div class="bar-fill" :style="{ width: barWidth(p.tokens) }"></div></div>
-          <span class="bar-val">{{ fmt(p.tokens) }}</span>
+          <span class="bar-val">{{ fmt(p.tokens) }} · {{ cost(p.cost) }}</span>
         </div>
       </div>
 
@@ -108,7 +109,7 @@
         </span>
       </h2>
       <table class="tbl">
-        <thead><tr><th>时间跨度</th><th>对话条数</th><th>输入</th><th>输出</th><th>总计</th></tr></thead>
+        <thead><tr><th>时间跨度</th><th>对话条数</th><th>输入</th><th>输出</th><th>总计</th><th>费用</th></tr></thead>
         <tbody>
           <tr v-for="(c, i) in store.stats.clusters" :key="i">
             <td>{{ time(c.startTime) }} ~ {{ hms(c.endTime) }}</td>
@@ -116,6 +117,7 @@
             <td>{{ c.inputTokens }}</td>
             <td>{{ c.outputTokens }}</td>
             <td>{{ c.totalTokens }}</td>
+            <td>{{ cost(c.cost) }}</td>
           </tr>
         </tbody>
       </table>
@@ -191,6 +193,11 @@ const plotH = chartH - padB
 
 function fmt(n: number): string {
   return n.toLocaleString()
+}
+
+function cost(n: number | undefined): string {
+  const cur = store.stats?.currency === 'CNY' ? '¥' : (store.stats?.currency || '')
+  return cur + (n ?? 0).toFixed(4)
 }
 
 function time(ts: number): string {
@@ -356,7 +363,7 @@ h2 { margin: 28px 0 12px; font-size: 16px; color: var(--color-muted); }
 .exp-btn:hover { background: rgba(108,138,255,0.1); }
 .hint { color: var(--color-muted); padding: 20px 0; }
 .hint.err { color: var(--color-danger); }
-.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
 .card {
   background: var(--color-surface); border: 1px solid var(--color-border);
   border-radius: 10px; padding: 16px; text-align: center;
@@ -392,7 +399,7 @@ h2 { margin: 28px 0 12px; font-size: 16px; color: var(--color-muted); }
 .bar-label { width: 180px; color: var(--color-muted); }
 .bar-track { flex: 1; background: var(--color-surface); border-radius: 4px; height: 16px; overflow: hidden; }
 .bar-fill { height: 100%; background: var(--color-accent); }
-.bar-val { width: 80px; text-align: right; }
+.bar-val { width: 160px; text-align: right; }
 .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .tbl th, .tbl td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--color-border); }
 .tbl th { color: var(--color-muted); font-weight: 500; }

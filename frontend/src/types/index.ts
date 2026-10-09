@@ -61,6 +61,7 @@ export interface SummaryStats {
   inputTokens: number
   outputTokens: number
   totalTokens: number
+  cost: number
 }
 
 export interface DayStat {
@@ -73,6 +74,7 @@ export interface PlatformStat {
   platform: string
   count: number
   tokens: number
+  cost: number
 }
 
 export interface RecentItem {
@@ -90,9 +92,11 @@ export interface ClusterStat {
   inputTokens: number
   outputTokens: number
   totalTokens: number
+  cost: number
 }
 
 export interface StatsResponse {
+  currency: string
   summary: SummaryStats
   byDay: DayStat[]
   byHour: DayStat[]

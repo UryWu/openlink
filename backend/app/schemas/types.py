@@ -92,6 +92,7 @@ class SummaryStats(BaseModel):
     inputTokens: int = 0
     outputTokens: int = 0
     totalTokens: int = 0
+    cost: float = 0.0
 
 
 class DayStat(BaseModel):
@@ -106,6 +107,7 @@ class PlatformStat(BaseModel):
     platform: str
     count: int = 0
     tokens: int = 0
+    cost: float = 0.0
 
 
 class RecentItem(BaseModel):
@@ -125,10 +127,12 @@ class ClusterStat(BaseModel):
     inputTokens: int
     outputTokens: int
     totalTokens: int
+    cost: float = 0.0
 
 
 class StatsResponse(BaseModel):
     """GET /stats 响应。"""
+    currency: str = "CNY"
     summary: SummaryStats
     byDay: list[DayStat] = []
     byHour: list[DayStat] = []

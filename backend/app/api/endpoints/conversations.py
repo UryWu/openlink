@@ -26,6 +26,7 @@ from app.schemas.types import (
     RecentItem,
 )
 from app.utils.token_count import count_tokens
+from app.core.pricing import load_pricing, calc_cost
 from fastapi.responses import PlainTextResponse
 import time as _time
 
@@ -134,6 +135,7 @@ async def get_stats(convId: str | None = None, clusterIntervalMinutes: int = 30)
     """
     records = store.read_records(conv_id=convId)
 
+    pricing = load_pricing()
     summary = SummaryStats()
     by_day: dict[str, DayStat] = {}
     by_hour: dict[str, DayStat] = {}
@@ -148,6 +150,7 @@ async def get_stats(convId: str | None = None, clusterIntervalMinutes: int = 30)
         summary.count += 1
         summary.inputTokens += it
         summary.outputTokens += ot
+        summary.cost += calc_cost(r.get("platform", "unknown"), it, ot, pricing)
 
         ts = int(r.get("ts", 0))
         if ts:
@@ -184,6 +187,7 @@ async def get_stats(convId: str | None = None, clusterIntervalMinutes: int = 30)
         p = by_platform.setdefault(plat, PlatformStat(platform=plat))
         p.count += 1
         p.tokens += it + ot
+        p.cost += calc_cost(plat, it, ot, pricing)
 
     summary.totalTokens = summary.inputTokens + summary.outputTokens
 
@@ -202,6 +206,7 @@ async def get_stats(convId: str | None = None, clusterIntervalMinutes: int = 30)
             cur = {
                 "startTime": ts, "endTime": ts, "count": 1,
                 "inputTokens": it, "outputTokens": ot, "totalTokens": it + ot,
+                "cost": calc_cost(r.get("platform", "unknown"), it, ot, pricing),
             }
         else:
             cur["endTime"] = ts
@@ -209,6 +214,7 @@ async def get_stats(convId: str | None = None, clusterIntervalMinutes: int = 30)
             cur["inputTokens"] += it
             cur["outputTokens"] += ot
             cur["totalTokens"] += it + ot
+            cur["cost"] += calc_cost(r.get("platform", "unknown"), it, ot, pricing)
     if cur is not None:
         clusters.append(ClusterStat(**cur))
 
@@ -224,6 +230,7 @@ async def get_stats(convId: str | None = None, clusterIntervalMinutes: int = 30)
     ]
 
     return StatsResponse(
+        currency=pricing.get("currency", "CNY"),
         summary=summary,
         byDay=sorted(by_day.values(), key=lambda x: x.date),
         byHour=sorted(by_hour.values(), key=lambda x: x.date),
