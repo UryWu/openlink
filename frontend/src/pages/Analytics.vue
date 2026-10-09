@@ -239,8 +239,15 @@ const tipAbove = computed(() => !hover.value || hover.value.y > 90)
 const tooltipY = computed(() => (hover.value ? hover.value.y : 0))
 
 function xLabel(d: string): string {
-  // hour: 'MM-DD HH:00' 原样；day: 'YYYY-MM-DD' → 'MM-DD'；week/month/year 原样
   if (granularity.value === 'day') return d.slice(5)
+  if (granularity.value === 'week') {
+    // d 是该周周一日期 YYYY-MM-DD，显示 MM-DD~MM-DD（周一~周日）
+    const mon = new Date(d + 'T00:00:00')
+    if (isNaN(mon.getTime())) return d
+    const sun = new Date(mon.getTime() + 6 * 86400000)
+    const f = (x: Date) => `${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+    return `${f(mon)}~${f(sun)}`
+  }
   return d
 }
 

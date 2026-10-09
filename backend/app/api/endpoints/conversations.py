@@ -151,7 +151,7 @@ async def get_stats(convId: str | None = None):
             lt = time.localtime(ts / 1000)
             date = time.strftime("%Y-%m-%d", lt)
             hour = time.strftime("%m-%d %H:00", lt)
-            week = time.strftime("%Y-W%W", lt)
+            week = time.strftime("%Y-%m-%d", time.localtime(ts / 1000 - (lt.tm_wday) * 86400))
             month = time.strftime("%Y-%m", lt)
             year = time.strftime("%Y", lt)
         else:
