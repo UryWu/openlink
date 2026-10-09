@@ -78,10 +78,11 @@ export async function execTool(req: ToolRequest): Promise<ToolResponse> {
   return data
 }
 
-export async function fetchStats(convId?: string): Promise<StatsResponse> {
-  const { data } = await api.get<StatsResponse>('/stats', {
-    params: convId ? { convId } : {},
-  })
+export async function fetchStats(convId?: string, clusterIntervalMinutes?: number): Promise<StatsResponse> {
+  const params: Record<string, unknown> = {}
+  if (convId) params.convId = convId
+  if (clusterIntervalMinutes != null) params.clusterIntervalMinutes = clusterIntervalMinutes
+  const { data } = await api.get<StatsResponse>('/stats', { params })
   return data
 }
 

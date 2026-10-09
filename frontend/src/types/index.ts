@@ -83,6 +83,15 @@ export interface RecentItem {
   outputTokens: number
 }
 
+export interface ClusterStat {
+  startTime: number
+  endTime: number
+  count: number
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+}
+
 export interface StatsResponse {
   summary: SummaryStats
   byDay: DayStat[]
@@ -91,6 +100,7 @@ export interface StatsResponse {
   byMonth: DayStat[]
   byYear: DayStat[]
   byPlatform: PlatformStat[]
+  clusters: ClusterStat[]
   recent: RecentItem[]
 }
 

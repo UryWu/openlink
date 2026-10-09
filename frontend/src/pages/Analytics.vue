@@ -96,6 +96,30 @@
         </div>
       </div>
 
+      <h2>会话聚类
+        <span class="cluster-ctrl">
+          间隔：
+          <select class="sel sel-inline" :value="store.clusterInterval" @change="onClusterChange(($event.target as HTMLSelectElement).value)">
+            <option :value="5">5 分钟</option>
+            <option :value="15">15 分钟</option>
+            <option :value="30">30 分钟</option>
+            <option :value="60">1 小时</option>
+          </select>
+        </span>
+      </h2>
+      <table class="tbl">
+        <thead><tr><th>时间跨度</th><th>对话条数</th><th>输入</th><th>输出</th><th>总计</th></tr></thead>
+        <tbody>
+          <tr v-for="(c, i) in store.stats.clusters" :key="i">
+            <td>{{ time(c.startTime) }} ~ {{ hms(c.endTime) }}</td>
+            <td>{{ c.count }}</td>
+            <td>{{ c.inputTokens }}</td>
+            <td>{{ c.outputTokens }}</td>
+            <td>{{ c.totalTokens }}</td>
+          </tr>
+        </tbody>
+      </table>
+
       <h2>最近对话</h2>
       <table class="tbl">
         <thead><tr><th>时间</th><th>平台</th><th>消息</th><th>输入</th><th>输出</th></tr></thead>
@@ -130,6 +154,18 @@ onMounted(() => store.init())
 
 function onSelect(convId: string) {
   store.select(convId)
+}
+
+function onClusterChange(v: string) {
+  store.clusterInterval = Number(v)
+  store.load()
+}
+
+function hms(ts: number): string {
+  if (!ts) return '-'
+  const d = new Date(ts)
+  const p2 = (n: number) => String(n).padStart(2, '0')
+  return `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`
 }
 
 async function onDelete(convId: string) {
@@ -286,6 +322,8 @@ function barWidth(tokens: number): string {
 h1 { margin-bottom: 20px; }
 h2 { margin: 28px 0 12px; font-size: 16px; color: var(--color-muted); }
 .gran-switch { margin-left: 12px; display: inline-flex; gap: 4px; }
+.cluster-ctrl { margin-left: 12px; font-size: 13px; font-weight: normal; color: var(--color-muted); display: inline-flex; align-items: center; gap: 6px; }
+.sel-inline { padding: 2px 8px; font-size: 12px; }
 .gran-switch button {
   background: transparent; color: var(--color-muted);
   border: 1px solid var(--color-border); border-radius: 6px;

@@ -150,7 +150,9 @@ function tryParseToolJSON(raw: string): any | null {
     text = maskInnerToolCloses(text);
     if (!text.includes('<tool')) return;          // fast-path skip
     let match: RegExpExecArray | null;
+    let matchedAny = false;
     while ((match = RE_TOOL.exec(text)) !== null) {
+      matchedAny = true;
       const full = match[0];
       const processed = getProcessed();
       if (processed.has(full)) continue;
@@ -178,6 +180,11 @@ function tryParseToolJSON(raw: string): any | null {
       }
     }
     RE_TOOL.lastIndex = 0;
+    if (!matchedAny && !/^\s*$/.test(text)) {
+      window.postMessage({type: 'TOOL_CALL', data: {
+        _syntaxError: `⚠ 检测到 <tool 标签但无法解析出完整工具调用，标签结构可能损坏。请检查是否多写了 </tool> 或漏写开/闭标签。原文片段：${text.slice(0, 120)}`
+      }}, '*');
+    }
   }
 
   // DeepSeek streams response content as JSON-fragmented SSE chunks:

@@ -7,6 +7,7 @@ export const useAnalyticsStore = defineStore('analytics', () => {
   const stats = ref<StatsResponse | null>(null)
   const conversations = ref<ConversationMeta[]>([])
   const selectedConvId = ref<string>('')
+  const clusterInterval = ref<number>(30)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -28,7 +29,7 @@ export const useAnalyticsStore = defineStore('analytics', () => {
     loading.value = true
     error.value = null
     try {
-      stats.value = await fetchStats(selectedConvId.value || undefined)
+      stats.value = await fetchStats(selectedConvId.value || undefined, clusterInterval.value)
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : '加载失败'
     } finally {
@@ -111,7 +112,7 @@ export const useAnalyticsStore = defineStore('analytics', () => {
   }
 
   return {
-    stats, conversations, selectedConvId, loading, error,
+    stats, conversations, selectedConvId, clusterInterval, loading, error,
     messages, messagesTotal, messagesLoading,
     load, loadConversations, select, remove, init, exportMd,
     loadMessages, loadMoreMessages,

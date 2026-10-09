@@ -13,6 +13,7 @@ from fastapi import HTTPException
 
 
 from app.schemas.types import (
+    ClusterStat,
     ConversationIn,
     ConversationAck,
     ConversationListResponse,
@@ -127,8 +128,10 @@ def _records_to_markdown(conv_id: str, records: list) -> str:
 
 
 @router.get("/stats", response_model=StatsResponse)
-async def get_stats(convId: str | None = None):
-    """聚合对话记录，返回统计；可选按 convId 过滤。"""
+async def get_stats(convId: str | None = None, clusterIntervalMinutes: int = 30):
+    """聚合对话记录，返回统计；可选按 convId 过滤。
+    同时按 clusterIntervalMinutes（分钟）聚类：时间间隔小于该值的记录归为同一会话组。
+    """
     records = store.read_records(conv_id=convId)
 
     summary = SummaryStats()
@@ -184,6 +187,31 @@ async def get_stats(convId: str | None = None):
 
     summary.totalTokens = summary.inputTokens + summary.outputTokens
 
+    # 会话聚类：按时间间隔分组（记录按 ts 升序）
+    clusters: list[ClusterStat] = []
+    gap_ms = max(1, clusterIntervalMinutes) * 60 * 1000
+    sorted_recs = sorted(records, key=lambda r: int(r.get("ts", 0) or 0))
+    cur = None
+    for r in sorted_recs:
+        ts = int(r.get("ts", 0) or 0)
+        it = int(r.get("inputTokens", 0) or 0)
+        ot = int(r.get("outputTokens", 0) or 0)
+        if cur is None or ts - cur["endTime"] > gap_ms:
+            if cur is not None:
+                clusters.append(ClusterStat(**cur))
+            cur = {
+                "startTime": ts, "endTime": ts, "count": 1,
+                "inputTokens": it, "outputTokens": ot, "totalTokens": it + ot,
+            }
+        else:
+            cur["endTime"] = ts
+            cur["count"] += 1
+            cur["inputTokens"] += it
+            cur["outputTokens"] += ot
+            cur["totalTokens"] += it + ot
+    if cur is not None:
+        clusters.append(ClusterStat(**cur))
+
     recent = [
         RecentItem(
             ts=int(r.get("ts", 0)),
@@ -203,5 +231,6 @@ async def get_stats(convId: str | None = None):
         byMonth=sorted(by_month.values(), key=lambda x: x.date),
         byYear=sorted(by_year.values(), key=lambda x: x.date),
         byPlatform=sorted(by_platform.values(), key=lambda x: x.tokens, reverse=True),
+        clusters=clusters,
         recent=recent,
     )

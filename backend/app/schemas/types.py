@@ -117,6 +117,16 @@ class RecentItem(BaseModel):
     outputTokens: int = 0
 
 
+class ClusterStat(BaseModel):
+    """按时间间隔聚类的会话组统计。"""
+    startTime: int
+    endTime: int
+    count: int
+    inputTokens: int
+    outputTokens: int
+    totalTokens: int
+
+
 class StatsResponse(BaseModel):
     """GET /stats 响应。"""
     summary: SummaryStats
@@ -126,6 +136,7 @@ class StatsResponse(BaseModel):
     byMonth: list[DayStat] = []
     byYear: list[DayStat] = []
     byPlatform: list[PlatformStat] = []
+    clusters: list[ClusterStat] = []
     recent: list[RecentItem] = []
 
 
