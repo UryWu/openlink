@@ -1,0 +1,201 @@
+# openlink Agent 运行规范
+
+> 本文件为 AI Agent 运行时约束，工作前请阅读。
+
+## 减少常见 LLM 编码错误的行为准则
+
+> **权衡**：本准则偏向谨慎而非速度。对于简单任务，请自行判断。
+
+### 1. 编码前先思考
+
+**不要假设。不要隐藏困惑。把权衡摆出来。**
+
+在实现之前：
+
+- 明确说出你的假设。如果不确定，就问。
+- 如果存在多种理解方式，列出来。
+- 如果有更简单的方案，说出来。
+- 如果有什么不清楚，停下来。说明哪里困惑。
+
+### 2. 简单优先
+
+**能解决问题的最少代码。不要投机性功能。**
+
+- 不要添加未被要求的功能。
+- 单次使用的代码不要进行抽象。
+- 不要添加未被要求的「灵活性」。
+- 不要为不可能发生的场景编写错误处理。
+- 如果 200 行代码能缩写成 50 行，就重写。
+
+### 3. 外科手术式修改
+
+**只改必须改的。只清理自己弄乱的。**
+
+- 不要「改进」相邻的代码或格式。
+- 不要重构没有问题的部分。
+- 匹配现有代码风格，即使你不喜欢。
+- 如果发现死代码，可以提一句——但不要删除。
+
+### 4. 目标驱动执行
+
+**定义成功标准。循环直到验证通过。**
+
+将任务转化为可验证的目标：
+
+- 「加个验证」 → 「写测试，然后让测试通过」
+- 「修这个 bug」 → 「用测试复现，然后修复」
+- 「重构 X」 → 「确保重构前后测试都通过」
+
+---
+
+## 5. 注释规范
+
+### 1. 注释要求（必须遵守）
+
+- 本项目 **所有代码必须包含详细的中文注释**。
+- 注释应说明以下内容：
+  - 代码的功能
+  - 所有变量含义
+  - 重要逻辑步骤
+  - 输入与输出
+  - 可能的异常情况
+
+### 2. 注释粒度
+
+要求达到 **「读注释即可理解代码逻辑」** 的程度。
+
+**示例1**：
+
+```python
+def calculate_total_price(price, quantity):
+    """
+    计算商品总价
+
+    参数：
+    price (float): 单价
+    quantity (int): 商品数量
+
+    返回：
+    float: 商品总价
+    """
+
+    # 计算总价：单价 * 数量
+    total = price * quantity
+
+    # 返回计算结果
+    return total
+```
+
+**示例2**：
+
+```python
+class AIConversation(Base):
+    """AI对话模型"""
+    __tablename__ = "ai_conversations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String(255), nullable=False, index=True)  # 用户会话ID，用于标识用户会话
+    role = Column(Enum(RoleEnum), nullable=False)  # 消息角色，区分用户消息和AI助手回复
+    content = Column(Text, nullable=False)  # 消息内容，存储用户问题或AI回复的文本
+    conversation_metadata = Column(JSONB)  # 对话元数据，存储额外上下文，如工具使用、产品ID引用等
+    created_at = Column(DateTime(timezone=True), server_default=func.now())  # 记录创建时间，自动设置为当前时间
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())  # 记录最后更新时间，自动更新为当前时间
+```
+
+### 3. 编码规范
+
+注释好、明确好输入输出参数，使其更工程化，更适宜其他同事接手。
+变量名小写，硬编码变量大写，尽量不要有魔法数字。
+
+### 4. 在agent用bash命令的时候设置utf-8编码输出
+
+参考：
+
+```bash
+uv run python -c 'import sys; sys.stdout.reconfigure(encoding="utf-8"); print("后面是执行的命令")'
+```
+
+---
+
+## 6. 工具调用标签格式（易错点，务必核对）
+
+在使用 `edit` 工具时，必须严格保证 XML 参数标签的**名称与闭合**正确，否则会收到
+`old_string is required` 之类的报错。本项目开发过程中已多次因手写标签出错而反复重试，
+特此记录，作为强制检查项。
+
+### 正确格式
+
+```
+<tool name="edit" call_id="a3f9k">
+  <parameter name="path">文件路径</parameter>
+  <parameter name="old_string">被替换的原文本</parameter>
+  <parameter name="new_string">替换后的新文本</parameter>
+</tool>
+```
+
+### 强制检查清单（每次调用 edit / write_file 前逐项核对）
+
+1. 每个参数都写成 `<parameter name="键名">值</parameter>`：
+   - `parameter` 与 `name` 之间有一个**空格**；
+   - `name=` 后是**双引号包裹**的键名；
+   - 键名后紧跟 `>`，不能漏掉或写成 `name="键名>`。
+2. 键名拼写正确：`path`、`old_string`、`new_string`、`content`、`mode`。
+3. 每个参数标签都有独立的 `</parameter>` 闭合。
+4. `edit` 的 `old_string` 必须**逐字符**匹配文件中已存在的内容（含缩进、换行）。
+5. 不要凭记忆拼写标签；先写骨架再填内容，发送前再扫一遍。
+
+### 常见错误与后果
+
+| 错误写法                       | 后果                                               |
+| ------------------------------ | -------------------------------------------------- |
+| `<parameter name="old_string>` | 解析不到 `old_string`，报 `old_string is required` |
+| `<parameter name="new_string>` | 同上，报缺参数                                     |
+| 标签名与属性位置错乱           | 参数丢失或串味                                     |
+| 复制上一次的错误片段重试       | 错误循环，浪费时间                                 |
+
+---
+
+*根据项目需要，可将上述准则与团队已有的编码规范、检查清单或自动化工具配置合并使用。*
+---
+
+## 7. 工具调用丢包问题（重要教训）
+
+### 现象
+
+Agent 发出的工具调用（exec_cmd / edit / write_file 等）**偶发未被后端执行**：
+后端控制台只记录到 `POST /exec HTTP/1.1 200 OK`，却没有对应的 `[cmd #N] start` 日志。
+表现为“命令发了但没反应”。
+
+### 根因
+
+工具调用标签（XML）在**传输/解析层被污染或截断**时，请求体虽到达后端（HTTP 200），
+但**内容未通过校验、未进入执行队列**，被静默丢弃。常见污染源：
+
+1. **多写闭合标签**：</tool> 或 </tool_call> 重复出现。
+2. **DSML 乱码标记**：｜｜DSML｜｜（全角竖线×2 + DSML + 全角竖线×2）混入标签。
+3. **标签未闭合**：<tool> 开标签缺 name 属性，或漏写闭合。
+4. **参数标签不规范**：写成 <键名>值</键名>，
+   应为 <parameter name="键名">值</parameter>。
+
+### 防丢包要点（每次调用工具前必看）
+
+1. 只写一个闭合标签 </tool>，绝不重复。
+2. 输出中绝不出现乱码标记 ｜｜DSML｜｜。
+3. 参数写成 <parameter name="键名">值</parameter>。
+4. 若要写含 <tool> / </parameter> 字面量的文件，
+   改用 Python 脚本拼接标签（LT + 斜杠 + 名 + GT），避免字面量被协议层吞掉导致文件截断。
+5. 命令“没反应”时：先 `cmd /c "echo probe"` 探针；
+   再查后端有无 [cmd #N] start——有=执行了，无=丢包，重发即可。
+
+
+### 丢包的经验规律（实测）
+
+**高丢包写法**（避免）：
+- `cmd /c "cd /d <中文路径> && git ..."` —— `cmd /c` + `cd /d` + `&&` + 引号嵌套，含中文路径时最易丢包。
+
+**低丢包写法**（推荐）：
+- 简单命令直接写，不加 `cmd /c`：如 `git -C G:\path status --short`
+- `git` 用 `-C <路径>` 指定目录，避免 `cd /d ... &&`
+- 探针：`cmd /c "echo probe"` 能通时，再发目标命令
+
+**判定**：命令“没反应” ≠ 失败。先重发一次；仍无输出则发探针确认链路；再看后端有无 `[cmd #N] start` 日志。
