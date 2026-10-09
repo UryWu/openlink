@@ -21,7 +21,7 @@ Past manual edits missed files. `scripts/bump_version.{sh,ps1}` centralizes the 
 
 ## Bundled resources
 
-This skill carries copies of three project files for self-containment; **the project copies at `<project>/scripts/bump_version.{sh,ps1}` and `<project>/docs/version-bumping.md` remain canonical** — keep both copies in sync by running [`<project>/scripts/sync_skill_copies.sh`](../../../scripts/sync_skill_copies.sh) after every edit (it pushes project → skill in one direction; `--check` mode reports drift, `--verbose` logs every file).
+This skill carries copies of three project files for self-containment; **the project copies at `<project>/scripts/bump_version.{sh,ps1}` and `<project>/docs/guides/version-bumping.md` remain canonical** — keep both copies in sync by running [`<project>/scripts/sync_skill_copies.sh`](../../../scripts/sync_skill_copies.sh) after every edit (it pushes project → skill in one direction; `--check` mode reports drift, `--verbose` logs every file).
 
 - `scripts/bump_version.sh` — bundled bash bump script (use the project copy at `<project>/scripts/bump_version.sh` for execution; this copy is a reference snapshot)
 - `scripts/bump_version.ps1` — bundled PowerShell bump script (use the project copy at `<project>/scripts/bump_version.ps1` for execution; this copy is a reference snapshot)
@@ -160,4 +160,4 @@ If you forget step 4, the bump script will still work (it uses project canonical
 
 ## Reference
 
-For deeper context — `lockfile` design rationale, full release flow, related scripts (`build.sh`, `deploy-extension.sh`) — see [`references/version-bumping.md`](references/version-bumping.md) (bundled with this skill; canonical copy at [`docs/version-bumping.md`](../../docs/version-bumping.md) in this repo).
+For deeper context — `lockfile` design rationale, full release flow, related scripts (`build.sh`, `deploy-extension.sh`) — see [`references/version-bumping.md`](references/version-bumping.md) (bundled with this skill; canonical copy at [`docs/guides/version-bumping.md`](../../docs/guides/version-bumping.md) in this repo).

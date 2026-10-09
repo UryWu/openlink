@@ -38,7 +38,7 @@ OpenLink 项目的辅助脚本。
 
 **功能：** 批量更新项目版本号（仅做文件编辑，不做 git 操作）
 
-> 📖 完整说明（含用法、SemVer 判断、lockfile 重新生成原理、加新文件时的同步步骤、已知陷阱）见 **[`docs/version-bumping.md`](../docs/version-bumping.md)**
+> 📖 完整说明（含用法、SemVer 判断、lockfile 重新生成原理、加新文件时的同步步骤、已知陷阱）见 **[`docs/guides/version-bumping.md`](../docs/guides/version-bumping.md)**
 
 快速参考：
 
