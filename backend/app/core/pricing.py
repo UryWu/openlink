@@ -24,9 +24,12 @@ logger = logging.getLogger("openlink.pricing")
 _DEFAULT_PRICING: dict[str, Any] = {
     "currency": "CNY",
     "unit": 1_000_000,
+    # 参考官方 API 单价（元/百万 token），网页版无峰谷/缓存分档，取固定估值。
     "platforms": {
-        "chat.deepseek.com": {"input": 1.0, "output": 2.0},
-        "chat.qwen.ai": {"input": 0.4, "output": 1.2},
+        # DeepSeek：按 deepseek-flash 高峰价（输入 2 / 输出 8）
+        "chat.deepseek.com": {"input": 2.0, "output": 8.0},
+        # 通义千问：按 qwen-plus 原价（输入 2 / 输出 8）
+        "chat.qwen.ai": {"input": 2.0, "output": 8.0},
     },
 }
 
