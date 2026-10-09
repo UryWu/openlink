@@ -627,23 +627,27 @@ function startDOMObserver(_responseSelector: string) {
       if (data && data._syntaxError) {
         // 标签语法错误（DSML 乱码 / 标签不闭合）：回报警告，不执行
         console.warn('[OpenLink] 工具调用语法错误:', data._syntaxError);
+        const key0 = 'err:' + String(hashStr(full));
+        if (processed.has(key0)) continue;
+        processed.add(key0);
         if (sourceEl) {
-          const key0 = 'err:' + String(hashStr(full));
-          if (!processed.has(key0)) {
-            processed.add(key0);
-            renderToolCard(data, full, sourceEl, key0, processed);
-          }
+          renderToolCard(data, full, sourceEl, key0, processed);
+        } else {
+          // 无 sourceEl（如 DeepSeek 走 injected.js 路径）：回填对话，确保用户可见
+          fillAndSend(data._syntaxError, true, true);
         }
         continue;
       }
       if (!data) {
         console.warn('[OpenLink] 工具调用解析失败:', full);
+        const key0 = 'err:' + String(hashStr(full));
+        if (processed.has(key0)) continue;
+        processed.add(key0);
+        const errMsg = `⚠ 工具调用解析失败：标签结构无法识别。请检查 <tool> / <parameter> 标签是否完整闭合、是否多写了 </tool>。原文片段：${full.slice(0, 120)}`;
         if (sourceEl) {
-          const key0 = 'err:' + String(hashStr(full));
-          if (!processed.has(key0)) {
-            processed.add(key0);
-            renderToolCard({ _syntaxError: `⚠ 工具调用解析失败：标签结构无法识别。请检查 <tool> / <parameter> 标签是否完整闭合、是否多写了 </tool>。原文片段：${full.slice(0, 120)}` }, full, sourceEl, key0, processed);
-          }
+          renderToolCard({ _syntaxError: errMsg }, full, sourceEl, key0, processed);
+        } else {
+          fillAndSend(errMsg, true, true);
         }
         continue;
       }
