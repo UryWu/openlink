@@ -134,6 +134,9 @@ async def get_stats(convId: str | None = None):
     summary = SummaryStats()
     by_day: dict[str, DayStat] = {}
     by_hour: dict[str, DayStat] = {}
+    by_week: dict[str, DayStat] = {}
+    by_month: dict[str, DayStat] = {}
+    by_year: dict[str, DayStat] = {}
     by_platform: dict[str, PlatformStat] = {}
 
     for r in records:
@@ -144,15 +147,35 @@ async def get_stats(convId: str | None = None):
         summary.outputTokens += ot
 
         ts = int(r.get("ts", 0))
-        date = time.strftime("%Y-%m-%d", time.localtime(ts / 1000)) if ts else "unknown"
+        if ts:
+            lt = time.localtime(ts / 1000)
+            date = time.strftime("%Y-%m-%d", lt)
+            hour = time.strftime("%m-%d %H:00", lt)
+            week = time.strftime("%Y-W%W", lt)
+            month = time.strftime("%Y-%m", lt)
+            year = time.strftime("%Y", lt)
+        else:
+            date = hour = week = month = year = "unknown"
+
         d = by_day.setdefault(date, DayStat(date=date))
         d.inputTokens += it
         d.outputTokens += ot
 
-        hour = time.strftime("%m-%d %H:00", time.localtime(ts / 1000)) if ts else "unknown"
         h = by_hour.setdefault(hour, DayStat(date=hour))
         h.inputTokens += it
         h.outputTokens += ot
+
+        w = by_week.setdefault(week, DayStat(date=week))
+        w.inputTokens += it
+        w.outputTokens += ot
+
+        mo = by_month.setdefault(month, DayStat(date=month))
+        mo.inputTokens += it
+        mo.outputTokens += ot
+
+        y = by_year.setdefault(year, DayStat(date=year))
+        y.inputTokens += it
+        y.outputTokens += ot
 
         plat = r.get("platform", "unknown")
         p = by_platform.setdefault(plat, PlatformStat(platform=plat))
@@ -176,6 +199,9 @@ async def get_stats(convId: str | None = None):
         summary=summary,
         byDay=sorted(by_day.values(), key=lambda x: x.date),
         byHour=sorted(by_hour.values(), key=lambda x: x.date),
+        byWeek=sorted(by_week.values(), key=lambda x: x.date),
+        byMonth=sorted(by_month.values(), key=lambda x: x.date),
+        byYear=sorted(by_year.values(), key=lambda x: x.date),
         byPlatform=sorted(by_platform.values(), key=lambda x: x.tokens, reverse=True),
         recent=recent,
     )

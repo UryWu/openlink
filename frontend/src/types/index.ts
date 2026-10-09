@@ -87,6 +87,9 @@ export interface StatsResponse {
   summary: SummaryStats
   byDay: DayStat[]
   byHour: DayStat[]
+  byWeek: DayStat[]
+  byMonth: DayStat[]
+  byYear: DayStat[]
   byPlatform: PlatformStat[]
   recent: RecentItem[]
 }

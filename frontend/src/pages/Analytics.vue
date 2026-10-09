@@ -42,9 +42,12 @@
 
       <h2>每日趋势
         <span class="gran-switch">
-          <button :class="{ active: granularity === 'day' }" @click="granularity = 'day'">按天</button>
           <button :class="{ active: granularity === 'hour' }" @click="granularity = 'hour'"
             title="按自然小时聚合：16:00 表示 16:00–16:59 内所有对话的 token 总和">按小时</button>
+          <button :class="{ active: granularity === 'day' }" @click="granularity = 'day'">按天</button>
+          <button :class="{ active: granularity === 'week' }" @click="granularity = 'week'">按周</button>
+          <button :class="{ active: granularity === 'month' }" @click="granularity = 'month'">按月</button>
+          <button :class="{ active: granularity === 'year' }" @click="granularity = 'year'">按年</button>
         </span>
       </h2>
       <div class="chart">
@@ -159,10 +162,19 @@ function time(ts: number): string {
   return new Date(ts).toLocaleString()
 }
 
-const granularity = ref<'day' | 'hour'>('day')
-const days = computed(() =>
-  granularity.value === 'hour' ? (store.stats?.byHour ?? []) : (store.stats?.byDay ?? [])
-)
+type Gran = 'hour' | 'day' | 'week' | 'month' | 'year'
+const granularity = ref<Gran>('day')
+const days = computed(() => {
+  const st = store.stats
+  if (!st) return []
+  switch (granularity.value) {
+    case 'hour': return st.byHour ?? []
+    case 'week': return st.byWeek ?? []
+    case 'month': return st.byMonth ?? []
+    case 'year': return st.byYear ?? []
+    default: return st.byDay ?? []
+  }
+})
 
 const maxVal = computed(() => {
   let m = 1
@@ -226,6 +238,12 @@ const tooltipX = computed(() => {
 const tipAbove = computed(() => !hover.value || hover.value.y > 90)
 const tooltipY = computed(() => (hover.value ? hover.value.y : 0))
 
+function xLabel(d: string): string {
+  // hour: 'MM-DD HH:00' 原样；day: 'YYYY-MM-DD' → 'MM-DD'；week/month/year 原样
+  if (granularity.value === 'day') return d.slice(5)
+  return d
+}
+
 const xLabels = computed(() => {
   const ds = days.value
   const n = ds.length
@@ -233,9 +251,9 @@ const xLabels = computed(() => {
   const step = n > 12 ? Math.ceil(n / 12) : 1
   const out: { x: number; label: string }[] = []
   for (let i = 0; i < n; i += step) {
-    out.push({ x: xAt(i, n), label: granularity.value === 'hour' ? ds[i].date : ds[i].date.slice(5) })
+    out.push({ x: xAt(i, n), label: xLabel(ds[i].date) })
   }
-  const lastLabel = granularity.value === 'hour' ? ds[n - 1].date : ds[n - 1].date.slice(5)
+  const lastLabel = xLabel(ds[n - 1].date)
   if (out.length && out[out.length - 1].label !== lastLabel) {
     out.push({ x: xAt(n - 1, n), label: lastLabel })
   }

@@ -122,6 +122,9 @@ class StatsResponse(BaseModel):
     summary: SummaryStats
     byDay: list[DayStat] = []
     byHour: list[DayStat] = []
+    byWeek: list[DayStat] = []
+    byMonth: list[DayStat] = []
+    byYear: list[DayStat] = []
     byPlatform: list[PlatformStat] = []
     recent: list[RecentItem] = []
 
