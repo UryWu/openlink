@@ -1479,7 +1479,7 @@ async function executeToolCall(toolCall: any) {
   // 标签语法错误（DSML 乱码 / 标签不闭合）：不回填执行，直接把错误信息发回对话
   if (toolCall && toolCall._syntaxError) {
     console.warn('[OpenLink] 工具调用语法错误，已拦截:', toolCall._syntaxError);
-    fillAndSend(toolCall._syntaxError, true);
+    fillAndSend(toolCall._syntaxError, true, true);
     return;
   }
 
@@ -1527,7 +1527,7 @@ async function executeToolCall(toolCall: any) {
       fillAndSend(
         `[OpenLink 错误] 请求未能到达后端（网络错误/丢包），工具调用未执行。` +
         `请求 #${reqId}。请检查本地服务是否运行、代理是否正常后重试。`,
-        true
+        true, true
       );
       return;
     }
@@ -1598,7 +1598,7 @@ function querySelectorFirst(selectors: string): HTMLElement | null {
   return null;
 }
 
-async function fillAndSend(result: string, autoSend = false) {
+async function fillAndSend(result: string, autoSend = false, forceSend = false) {
   const { editor: editorSel, sendBtn: sendBtnSel, fillMethod } = getSiteConfig();
   const editor = querySelectorFirst(editorSel);
   if (!editor) return;
@@ -1628,7 +1628,8 @@ async function fillAndSend(result: string, autoSend = false) {
 
   if (autoSend) {
     const cfg = await chrome.storage.local.get(['autoSend', 'delayMin', 'delayMax']);
-    if (cfg.autoSend === false) return;
+    // forceSend=true 时绕过 autoSend 开关（错误/警告类系统提示必须送达 AI）
+    if (cfg.autoSend === false && !forceSend) return;
 
     const min = (cfg.delayMin ?? 1) * 1000;
     const max = (cfg.delayMax ?? 4) * 1000;
