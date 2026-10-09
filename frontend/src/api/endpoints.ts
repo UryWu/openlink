@@ -10,6 +10,7 @@ import type {
   FileItem,
   StatsResponse,
   ConversationMeta,
+  MessagePage,
 } from '@/types'
 
 /** Singleton Axios instance that reads the token from localStorage each request. */
@@ -98,6 +99,14 @@ export async function exportConversation(convId: string): Promise<string> {
   const { data } = await api.get<string>(`/conversations/${encodeURIComponent(convId)}/export`, {
     transformResponse: [(d) => d],
   })
+  return data
+}
+
+export async function fetchMessages(convId: string | undefined, offset: number, limit: number): Promise<MessagePage> {
+  const path = convId
+    ? `/conversations/${encodeURIComponent(convId)}/messages`
+    : '/conversations/_all/messages'
+  const { data } = await api.get<MessagePage>(path, { params: { offset, limit } })
   return data
 }
 

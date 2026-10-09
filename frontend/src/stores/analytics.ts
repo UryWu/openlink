@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { StatsResponse, ConversationMeta } from '@/types'
-import { fetchStats, fetchConversations, deleteConversation, exportConversation } from '@/api/endpoints'
+import type { StatsResponse, ConversationMeta, MessageItem } from '@/types'
+import { fetchStats, fetchConversations, deleteConversation, exportConversation, fetchMessages } from '@/api/endpoints'
 
 export const useAnalyticsStore = defineStore('analytics', () => {
   const stats = ref<StatsResponse | null>(null)
@@ -9,6 +9,12 @@ export const useAnalyticsStore = defineStore('analytics', () => {
   const selectedConvId = ref<string>('')
   const loading = ref(false)
   const error = ref<string | null>(null)
+
+  // 最近对话分页
+  const messages = ref<MessageItem[]>([])
+  const messagesTotal = ref(0)
+  const messagesLoading = ref(false)
+  const PAGE = 20
 
   async function loadConversations() {
     try {
@@ -30,9 +36,39 @@ export const useAnalyticsStore = defineStore('analytics', () => {
     }
   }
 
+  /** 拉取最近对话第一页（重置）。convId 为空时拉全部会话的消息。 */
+  async function loadMessages(convId?: string) {
+    messagesLoading.value = true
+    try {
+      const r = await fetchMessages(convId, 0, PAGE)
+      messages.value = r.items
+      messagesTotal.value = r.total
+    } catch (e: unknown) {
+      error.value = e instanceof Error ? e.message : '加载消息失败'
+    } finally {
+      messagesLoading.value = false
+    }
+  }
+
+  /** 加载下一页，追加。 */
+  async function loadMoreMessages() {
+    if (messagesLoading.value || messages.value.length >= messagesTotal.value) return
+    messagesLoading.value = true
+    try {
+      const r = await fetchMessages(selectedConvId.value || undefined, messages.value.length, PAGE)
+      messages.value = messages.value.concat(r.items)
+      messagesTotal.value = r.total
+    } catch (e: unknown) {
+      error.value = e instanceof Error ? e.message : '加载消息失败'
+    } finally {
+      messagesLoading.value = false
+    }
+  }
+
   async function select(convId: string) {
     selectedConvId.value = convId
     await load()
+    await loadMessages(convId || undefined)
   }
 
   async function remove(convId: string) {
@@ -42,6 +78,7 @@ export const useAnalyticsStore = defineStore('analytics', () => {
       if (selectedConvId.value === convId) {
         selectedConvId.value = ''
         await load()
+        await loadMessages(undefined)
       }
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : '删除失败'
@@ -70,10 +107,13 @@ export const useAnalyticsStore = defineStore('analytics', () => {
   async function init() {
     await loadConversations()
     await load()
+    await loadMessages(selectedConvId.value || undefined)
   }
 
   return {
     stats, conversations, selectedConvId, loading, error,
+    messages, messagesTotal, messagesLoading,
     load, loadConversations, select, remove, init, exportMd,
+    loadMessages, loadMoreMessages,
   }
 })

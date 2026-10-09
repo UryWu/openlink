@@ -121,6 +121,7 @@ class StatsResponse(BaseModel):
     """GET /stats 响应。"""
     summary: SummaryStats
     byDay: list[DayStat] = []
+    byHour: list[DayStat] = []
     byPlatform: list[PlatformStat] = []
     recent: list[RecentItem] = []
 

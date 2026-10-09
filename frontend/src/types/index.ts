@@ -86,6 +86,7 @@ export interface RecentItem {
 export interface StatsResponse {
   summary: SummaryStats
   byDay: DayStat[]
+  byHour: DayStat[]
   byPlatform: PlatformStat[]
   recent: RecentItem[]
 }
@@ -100,4 +101,31 @@ export interface ConversationMeta {
   inputTokens: number
   outputTokens: number
   totalTokens: number
+}
+
+
+export interface ConversationMeta {
+  convId: string
+  platform: string
+  count: number
+  firstTs: number
+  lastTs: number
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+}
+
+export interface MessageItem {
+  ts: number
+  platform: string
+  user: string
+  inputTokens: number
+  outputTokens: number
+}
+
+export interface MessagePage {
+  total: number
+  offset: number
+  limit: number
+  items: MessageItem[]
 }

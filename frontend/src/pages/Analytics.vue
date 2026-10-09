@@ -40,7 +40,13 @@
         </div>
       </div>
 
-      <h2>每日趋势</h2>
+      <h2>每日趋势
+        <span class="gran-switch">
+          <button :class="{ active: granularity === 'day' }" @click="granularity = 'day'">按天</button>
+          <button :class="{ active: granularity === 'hour' }" @click="granularity = 'hour'"
+            title="按自然小时聚合：16:00 表示 16:00–16:59 内所有对话的 token 总和">按小时</button>
+        </span>
+      </h2>
       <div class="chart">
         <svg :viewBox="`0 0 ${chartW} ${chartH}`" class="svg">
           <g v-for="t in yTicks" :key="'y' + t.value">
@@ -91,7 +97,7 @@
       <table class="tbl">
         <thead><tr><th>时间</th><th>平台</th><th>消息</th><th>输入</th><th>输出</th></tr></thead>
         <tbody>
-          <tr v-for="(r, i) in visibleRecent" :key="i">
+          <tr v-for="(r, i) in store.messages" :key="i">
             <td>{{ time(r.ts) }}</td>
             <td>{{ r.platform }}</td>
             <td class="msg">{{ r.user }}</td>
@@ -100,9 +106,9 @@
           </tr>
         </tbody>
       </table>
-      <div v-if="hasMoreRecent" class="more-wrap">
-        <button class="more-btn" @click="recentLimit += RECENT_STEP">
-          加载更多（{{ visibleRecent.length }} / {{ store.stats.recent.length }}）
+      <div v-if="store.messages.length < store.messagesTotal" class="more-wrap">
+        <button class="more-btn" :disabled="store.messagesLoading" @click="store.loadMoreMessages()">
+          {{ store.messagesLoading ? '加载中…' : `加载更多（${store.messages.length} / ${store.messagesTotal}）` }}
         </button>
       </div>
     </template>
@@ -115,15 +121,11 @@ import { useAnalyticsStore } from '@/stores/analytics'
 
 const store = useAnalyticsStore()
 
-const RECENT_STEP = 20
-const recentLimit = ref(RECENT_STEP)
-const visibleRecent = computed(() => (store.stats?.recent ?? []).slice(0, recentLimit.value))
-const hasMoreRecent = computed(() => (store.stats?.recent?.length ?? 0) > recentLimit.value)
+
 
 onMounted(() => store.init())
 
 function onSelect(convId: string) {
-  recentLimit.value = RECENT_STEP
   store.select(convId)
 }
 
@@ -157,7 +159,10 @@ function time(ts: number): string {
   return new Date(ts).toLocaleString()
 }
 
-const days = computed(() => store.stats?.byDay ?? [])
+const granularity = ref<'day' | 'hour'>('day')
+const days = computed(() =>
+  granularity.value === 'hour' ? (store.stats?.byHour ?? []) : (store.stats?.byDay ?? [])
+)
 
 const maxVal = computed(() => {
   let m = 1
@@ -225,13 +230,14 @@ const xLabels = computed(() => {
   const ds = days.value
   const n = ds.length
   if (n === 0) return []
-  const step = n > 8 ? Math.ceil(n / 8) : 1
+  const step = n > 12 ? Math.ceil(n / 12) : 1
   const out: { x: number; label: string }[] = []
   for (let i = 0; i < n; i += step) {
-    out.push({ x: xAt(i, n), label: ds[i].date.slice(5) })
+    out.push({ x: xAt(i, n), label: granularity.value === 'hour' ? ds[i].date : ds[i].date.slice(5) })
   }
-  if (out.length && out[out.length - 1].label !== ds[n - 1].date.slice(5)) {
-    out.push({ x: xAt(n - 1, n), label: ds[n - 1].date.slice(5) })
+  const lastLabel = granularity.value === 'hour' ? ds[n - 1].date : ds[n - 1].date.slice(5)
+  if (out.length && out[out.length - 1].label !== lastLabel) {
+    out.push({ x: xAt(n - 1, n), label: lastLabel })
   }
   return out
 })
@@ -252,6 +258,13 @@ function barWidth(tokens: number): string {
 .analytics { max-width: 960px; }
 h1 { margin-bottom: 20px; }
 h2 { margin: 28px 0 12px; font-size: 16px; color: var(--color-muted); }
+.gran-switch { margin-left: 12px; display: inline-flex; gap: 4px; }
+.gran-switch button {
+  background: transparent; color: var(--color-muted);
+  border: 1px solid var(--color-border); border-radius: 6px;
+  padding: 2px 10px; font-size: 12px; cursor: pointer;
+}
+.gran-switch button.active { color: var(--color-accent); border-color: var(--color-accent); }
 .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
 .sel-label { font-size: 13px; color: var(--color-muted); }
 .sel {

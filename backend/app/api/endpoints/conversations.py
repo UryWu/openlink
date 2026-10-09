@@ -69,6 +69,29 @@ async def delete_conversation(conv_id: str):
         raise HTTPException(status_code=404, detail=f"conversation not found: {conv_id}")
     return DeleteAck(status="ok", deleted=True)
 
+@router.get("/conversations/{conv_id}/messages")
+async def get_messages(conv_id: str, offset: int = 0, limit: int = 20):
+    """分页返回消息（按时间倒序）。conv_id 为 '_all' 时返回全部会话的消息。"""
+    if conv_id == "_all":
+        records = store.read_records()
+    else:
+        records = store.read_records(conv_id=conv_id)
+    total = len(records)
+    rev = records[::-1]
+    page = rev[offset:offset + limit]
+    items = [
+        {
+            "ts": int(r.get("ts", 0)),
+            "platform": r.get("platform", ""),
+            "user": (r.get("user", "") or "")[:100],
+            "inputTokens": int(r.get("inputTokens", 0)),
+            "outputTokens": int(r.get("outputTokens", 0)),
+        }
+        for r in page
+    ]
+    return {"total": total, "offset": offset, "limit": limit, "items": items}
+
+
 @router.get("/conversations/{conv_id}/export", response_class=PlainTextResponse)
 async def export_conversation(conv_id: str):
     """导出单个会话为 Markdown 文本（ts 转人类可读时间）。"""
@@ -110,6 +133,7 @@ async def get_stats(convId: str | None = None):
 
     summary = SummaryStats()
     by_day: dict[str, DayStat] = {}
+    by_hour: dict[str, DayStat] = {}
     by_platform: dict[str, PlatformStat] = {}
 
     for r in records:
@@ -124,6 +148,11 @@ async def get_stats(convId: str | None = None):
         d = by_day.setdefault(date, DayStat(date=date))
         d.inputTokens += it
         d.outputTokens += ot
+
+        hour = time.strftime("%m-%d %H:00", time.localtime(ts / 1000)) if ts else "unknown"
+        h = by_hour.setdefault(hour, DayStat(date=hour))
+        h.inputTokens += it
+        h.outputTokens += ot
 
         plat = r.get("platform", "unknown")
         p = by_platform.setdefault(plat, PlatformStat(platform=plat))
@@ -140,12 +169,13 @@ async def get_stats(convId: str | None = None):
             inputTokens=int(r.get("inputTokens", 0)),
             outputTokens=int(r.get("outputTokens", 0)),
         )
-        for r in records[-100:][::-1]
+        for r in records[-20:][::-1]
     ]
 
     return StatsResponse(
         summary=summary,
         byDay=sorted(by_day.values(), key=lambda x: x.date),
+        byHour=sorted(by_hour.values(), key=lambda x: x.date),
         byPlatform=sorted(by_platform.values(), key=lambda x: x.tokens, reverse=True),
         recent=recent,
     )
