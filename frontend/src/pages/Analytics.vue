@@ -91,7 +91,7 @@
       <table class="tbl">
         <thead><tr><th>时间</th><th>平台</th><th>消息</th><th>输入</th><th>输出</th></tr></thead>
         <tbody>
-          <tr v-for="(r, i) in store.stats.recent" :key="i">
+          <tr v-for="(r, i) in visibleRecent" :key="i">
             <td>{{ time(r.ts) }}</td>
             <td>{{ r.platform }}</td>
             <td class="msg">{{ r.user }}</td>
@@ -100,6 +100,11 @@
           </tr>
         </tbody>
       </table>
+      <div v-if="hasMoreRecent" class="more-wrap">
+        <button class="more-btn" @click="recentLimit += RECENT_STEP">
+          加载更多（{{ visibleRecent.length }} / {{ store.stats.recent.length }}）
+        </button>
+      </div>
     </template>
   </div>
 </template>
@@ -110,9 +115,15 @@ import { useAnalyticsStore } from '@/stores/analytics'
 
 const store = useAnalyticsStore()
 
+const RECENT_STEP = 20
+const recentLimit = ref(RECENT_STEP)
+const visibleRecent = computed(() => (store.stats?.recent ?? []).slice(0, recentLimit.value))
+const hasMoreRecent = computed(() => (store.stats?.recent?.length ?? 0) > recentLimit.value)
+
 onMounted(() => store.init())
 
 function onSelect(convId: string) {
+  recentLimit.value = RECENT_STEP
   store.select(convId)
 }
 
@@ -308,4 +319,11 @@ h2 { margin: 28px 0 12px; font-size: 16px; color: var(--color-muted); }
 .tbl th, .tbl td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--color-border); }
 .tbl th { color: var(--color-muted); font-weight: 500; }
 .tbl .msg { max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.more-wrap { text-align: center; margin-top: 12px; }
+.more-btn {
+  background: transparent; color: var(--color-accent);
+  border: 1px solid var(--color-accent); border-radius: 6px;
+  padding: 6px 16px; font-size: 13px; cursor: pointer;
+}
+.more-btn:hover { background: rgba(108,138,255,0.1); }
 </style>
