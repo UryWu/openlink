@@ -301,27 +301,55 @@ function markExecuted(key: string): void {
   } catch {}
 }
 
-async function executeToolCallRaw(toolCall: any): Promise<string> {
+async function executeToolCallRaw(
+  toolCall: any,
+  onStatus?: (status: string) => void,
+): Promise<string> {
   const { authToken, apiUrl } = await chrome.storage.local.get(['authToken', 'apiUrl']);
-  if (!apiUrl) return '请先在插件中配置 API 地址';
+  if (!apiUrl) {
+    onStatus?.('未配置 API 地址');
+    return '请先在插件中配置 API 地址';
+  }
   const headers: any = { 'Content-Type': 'application/json' };
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-  // 发送前留痕：记录请求体，便于区分"未发出"与"发出未达"
   const reqBody = JSON.stringify(toolCall);
   const reqId = Math.random().toString(36).slice(2, 8);
-  console.log(`[OpenLink] → 发送 /exec #${reqId}:`, reqBody.slice(0, 200));
-  let response;
-  try {
-    response = await bgFetch(`${apiUrl}/exec`, { method: 'POST', headers, body: reqBody });
-  } catch (netErr) {
-    console.warn(`[OpenLink] ✗ /exec #${reqId} 网络错误:`, netErr);
-    return `[OpenLink 错误] 请求未能到达后端（网络错误/丢包），工具调用未执行。请求 #${reqId}。`;
+
+  // 超时重试：最多 3 次，每次 12 秒超时
+  const MAX_ATTEMPTS = 3;
+  const TIMEOUT_MS = 12000;
+  let lastErr = '';
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    onStatus?.(`已发送（第 ${attempt}/${MAX_ATTEMPTS} 次）…`);
+    console.log(`[OpenLink] → 发送 /exec #${reqId} (尝试 ${attempt}/${MAX_ATTEMPTS}):`, reqBody.slice(0, 200));
+    let response;
+    try {
+      // 用 Promise.race 加超时（bgFetch 无超时参数）
+      response = await Promise.race([
+        bgFetch(`${apiUrl}/exec`, { method: 'POST', headers, body: reqBody }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS)),
+      ]) as any;
+    } catch (netErr: any) {
+      lastErr = netErr?.message === 'timeout' ? '请求超时' : '网络错误';
+      console.warn(`[OpenLink] ✗ /exec #${reqId} 第 ${attempt} 次失败: ${lastErr}`);
+      onStatus?.(`未到达后端（${lastErr}），重试中…`);
+      continue;
+    }
+    console.log(`[OpenLink] ← /exec #${reqId} 响应: HTTP ${response.status}`);
+    if (response.status === 401) {
+      onStatus?.('认证失败');
+      return '认证失败，请在插件中重新输入 Token';
+    }
+    if (!response.ok) {
+      onStatus?.(`后端错误 HTTP ${response.status}`);
+      return `[OpenLink 错误] HTTP ${response.status}`;
+    }
+    onStatus?.('已执行');
+    const result = JSON.parse(response.body);
+    return result.output || result.error || '[OpenLink] 空响应';
   }
-  console.log(`[OpenLink] ← /exec #${reqId} 响应: HTTP ${response.status}`);
-  if (response.status === 401) return '认证失败，请在插件中重新输入 Token';
-  if (!response.ok) return `[OpenLink 错误] HTTP ${response.status}`;
-  const result = JSON.parse(response.body);
-  return result.output || result.error || '[OpenLink] 空响应';
+  onStatus?.(`未执行（${lastErr}）`);
+  return `[OpenLink 错误] 请求未能到达后端（${lastErr}），已重试 ${MAX_ATTEMPTS} 次，工具调用未执行。请求 #${reqId}。`;
 }
 
 function renderToolCard(data: any, _full: string, sourceEl: Element, key: string, processed: Set<string>) {
@@ -393,10 +421,12 @@ function renderToolCard(data: any, _full: string, sourceEl: Element, key: string
 
   execBtn.onclick = async () => {
     execBtn.disabled = true;
-    execBtn.textContent = '执行中...';
+    execBtn.textContent = '发送中...';
     markExecuted(key);
     try {
-      const text = await executeToolCallRaw(data);
+      const text = await executeToolCallRaw(data, (st) => {
+        execBtn.textContent = st;
+      });
       const resultBox = document.createElement('div');
       resultBox.style.cssText = 'margin-top:10px;background:#181825;border-radius:6px;padding:8px;max-height:200px;overflow-y:auto;font-family:monospace;font-size:12px;color:#cdd6f4;white-space:pre-wrap';
       resultBox.textContent = text;
@@ -1674,23 +1704,36 @@ async function executeToolCall(toolCall: any) {
 
     if (!apiUrl) { fillAndSend('请先在插件中配置 API 地址', false); return; }
 
-    // 发送前留痕：记录请求体，便于区分"未发出"与"发出未达"
     const reqBody = JSON.stringify(toolCall);
     const reqId = Math.random().toString(36).slice(2, 8);
-    console.log(`[OpenLink] → 发送 /exec #${reqId}:`, reqBody.slice(0, 200));
 
-    let response;
-    try {
-      response = await bgFetch(`${apiUrl}/exec`, {
-        method: 'POST',
-        headers,
-        body: reqBody
-      });
-    } catch (netErr) {
-      // 网络层错误（连接被拒/超时/丢包）：明确提示"请求可能未到达后端"
-      console.warn(`[OpenLink] ✗ /exec #${reqId} 网络错误:`, netErr);
+    // 超时重试：最多 3 次，每次 12 秒
+    const MAX_ATTEMPTS = 3;
+    const TIMEOUT_MS = 12000;
+    let response: any = null;
+    let lastErr = '';
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      console.log(`[OpenLink] → 发送 /exec #${reqId} (${attempt}/${MAX_ATTEMPTS})`);
+      try {
+        response = await Promise.race([
+          bgFetch(`${apiUrl}/exec`, { method: 'POST', headers, body: reqBody }),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), TIMEOUT_MS)),
+        ]);
+      } catch (netErr: any) {
+        response = null;
+        lastErr = netErr?.message === 'timeout' ? '请求超时' : '网络错误';
+        console.warn(`[OpenLink] ✗ /exec #${reqId} 第 ${attempt} 次失败: ${lastErr}`);
+        if (attempt < MAX_ATTEMPTS) {
+          fillAndSend(`[OpenLink] 请求未到达后端（${lastErr}），正在重试 ${attempt}/${MAX_ATTEMPTS}…`, false);
+        }
+        continue;
+      }
+      break;
+    }
+
+    if (!response) {
       fillAndSend(
-        `[OpenLink 错误] 请求未能到达后端（网络错误/丢包），工具调用未执行。` +
+        `[OpenLink 错误] 请求未能到达后端（${lastErr}），已重试 ${MAX_ATTEMPTS} 次，工具调用未执行。` +
         `请求 #${reqId}。请检查本地服务是否运行、代理是否正常后重试。`,
         true, true
       );
