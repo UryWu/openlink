@@ -411,7 +411,59 @@ function startDOMObserver(_responseSelector: string) {
   // DOM observer path and the injected.js → TOOL_CALL → executeToolCall
   // path honor the same setting.
 
+  // 已上报的对话轮次去重（convId + assistant 文本 hash）
+  const reportedConversations = new Set<string>();
+
+  /** 从 AI 回复容器向上找配对的用户消息文本。DeepSeek 用户消息选择器待实测。 */
+  function findUserText(aiEl: Element): string {
+    let node: Element | null = aiEl;
+    for (let i = 0; i < 6 && node; i++) {
+      const prev = node.previousElementSibling;
+      if (prev && !prev.querySelector('.ds-markdown')) {
+        const t = (prev.textContent || '').trim();
+        if (t) return t;
+      }
+      node = node.parentElement;
+    }
+    return '';
+  }
+
+  /** 上报一轮对话（user + assistant）到后端。失败静默。 */
+  async function reportConversation(userText: string, assistantText: string): Promise<void> {
+    if (!userText || !assistantText) return;
+    const convId = getConversationId();
+    const key = convId + ':' + String(hashStr(assistantText));
+    if (reportedConversations.has(key)) return;
+    reportedConversations.add(key);
+    try {
+      const { authToken, apiUrl } = await chrome.storage.local.get(['authToken', 'apiUrl']);
+      if (!apiUrl) return;
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      await bgFetch(`${apiUrl}/conversations`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          platform: location.hostname,
+          convId,
+          user: userText.slice(0, 20000),
+          assistant: assistantText.slice(0, 20000),
+        }),
+      });
+    } catch (e) {
+      console.warn('[OpenLink] 对话上报失败:', e);
+    }
+  }
+
   function scanText(text: string, sourceEl?: Element) {
+    // 对话上报：若带来源元素（AI 回复容器），抓取本轮 user+assistant 上报
+    if (sourceEl) {
+      const aiText = text.trim();
+      if (aiText) {
+        const userText = findUserText(sourceEl);
+        reportConversation(userText, aiText);
+      }
+    }
     // 检测多余闭合标签：先记录再合并，便于附加提醒
     const hadDuplicateClose = /(<\/(?:tool|tool_call)>)\s*(?:\1)+/.test(text);
     // 检测 DSML 乱码标记：不再静默删除，交由 parseXmlToolCall 统一报错提示
