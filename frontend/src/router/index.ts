@@ -29,6 +29,11 @@ const router = createRouter({
       component: () => import('@/pages/SkillsView.vue'),
     },
     {
+      path: '/analytics',
+      name: 'Analytics',
+      component: () => import('@/pages/Analytics.vue'),
+    },
+    {
       path: '/prompt',
       name: 'PromptViewer',
       component: () => import('@/pages/PromptViewer.vue'),

@@ -30,6 +30,7 @@ const navItems = [
   { to: '/files', label: '文件浏览器', icon: '📁' },
   { to: '/skills', label: '技能管理', icon: '⚡' },
   { to: '/prompt', label: '提示词', icon: '📝' },
+  { to: '/analytics', label: '对话统计', icon: '📈' },
   { to: '/settings', label: '设置', icon: '⚙️' },
 ]
 </script>
