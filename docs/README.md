@@ -26,6 +26,12 @@
 |------|------|
 | [deepseek-adapt.md](sites/deepseek-adapt.md) | DeepSeek 站点适配全流程 |
 
+## handoffs/ — 开发交接文档
+
+| 文档 | 说明 |
+|------|------|
+| [analytics-clustering.md](handoffs/analytics-clustering.md) | 对话聚类功能开发交接 |
+
 ## superpowers/ — 设计与计划
 
 | 目录 | 说明 |
