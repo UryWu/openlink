@@ -69,3 +69,57 @@ class SkillInfo(BaseModel):
     """Serializable skill descriptor."""
     name: str
     description: str = ""
+
+
+class ConversationIn(BaseModel):
+    """扩展上报的一条对话记录（未含 token）。"""
+    platform: str
+    convId: Optional[str] = None
+    user: str = ""
+    assistant: str = ""
+
+
+class ConversationAck(BaseModel):
+    """POST /conversations 响应。"""
+    status: str = "ok"
+    inputTokens: int = 0
+    outputTokens: int = 0
+
+
+class SummaryStats(BaseModel):
+    """汇总统计。"""
+    count: int = 0
+    inputTokens: int = 0
+    outputTokens: int = 0
+    totalTokens: int = 0
+
+
+class DayStat(BaseModel):
+    """按天统计。"""
+    date: str
+    inputTokens: int = 0
+    outputTokens: int = 0
+
+
+class PlatformStat(BaseModel):
+    """按平台统计。"""
+    platform: str
+    count: int = 0
+    tokens: int = 0
+
+
+class RecentItem(BaseModel):
+    """最近对话条目。"""
+    ts: int
+    platform: str
+    user: str = ""
+    inputTokens: int = 0
+    outputTokens: int = 0
+
+
+class StatsResponse(BaseModel):
+    """GET /stats 响应。"""
+    summary: SummaryStats
+    byDay: list[DayStat] = []
+    byPlatform: list[PlatformStat] = []
+    recent: list[RecentItem] = []
