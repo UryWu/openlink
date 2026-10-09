@@ -94,4 +94,11 @@ export async function deleteConversation(convId: string): Promise<void> {
   await api.delete(`/conversations/${encodeURIComponent(convId)}`)
 }
 
+export async function exportConversation(convId: string): Promise<string> {
+  const { data } = await api.get<string>(`/conversations/${encodeURIComponent(convId)}/export`, {
+    transformResponse: [(d) => d],
+  })
+  return data
+}
+
 export default api

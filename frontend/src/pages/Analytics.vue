@@ -14,6 +14,10 @@
         v-if="store.selectedConvId"
         class="del-btn"
         @click="onDelete(store.selectedConvId)">删除此会话</button>
+      <template v-if="store.selectedConvId">
+        <input class="name-input" v-model="exportName" placeholder="导出文件名（默认会话ID.md）" />
+        <button class="exp-btn" @click="onExport(store.selectedConvId)">导出 MD</button>
+      </template>
     </div>
 
     <div v-if="store.loading" class="hint">加载中…</div>
@@ -116,6 +120,12 @@ async function onDelete(convId: string) {
   if (confirm('确定删除此会话的所有记录？')) {
     await store.remove(convId)
   }
+}
+
+const exportName = ref('')
+
+async function onExport(convId: string) {
+  await store.exportMd(convId, exportName.value)
 }
 
 const chartW = 860
@@ -244,6 +254,17 @@ h2 { margin: 28px 0 12px; font-size: 16px; color: var(--color-muted); }
   padding: 6px 12px; font-size: 13px; cursor: pointer;
 }
 .del-btn:hover { background: rgba(248,113,113,0.1); }
+.name-input {
+  background: var(--color-surface); color: var(--color-text);
+  border: 1px solid var(--color-border); border-radius: 6px;
+  padding: 6px 10px; font-size: 13px; width: 220px;
+}
+.exp-btn {
+  background: transparent; color: var(--color-accent);
+  border: 1px solid var(--color-accent); border-radius: 6px;
+  padding: 6px 12px; font-size: 13px; cursor: pointer;
+}
+.exp-btn:hover { background: rgba(108,138,255,0.1); }
 .hint { color: var(--color-muted); padding: 20px 0; }
 .hint.err { color: var(--color-danger); }
 .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }

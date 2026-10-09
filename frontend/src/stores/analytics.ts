@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { StatsResponse, ConversationMeta } from '@/types'
-import { fetchStats, fetchConversations, deleteConversation } from '@/api/endpoints'
+import { fetchStats, fetchConversations, deleteConversation, exportConversation } from '@/api/endpoints'
 
 export const useAnalyticsStore = defineStore('analytics', () => {
   const stats = ref<StatsResponse | null>(null)
@@ -48,6 +48,25 @@ export const useAnalyticsStore = defineStore('analytics', () => {
     }
   }
 
+  async function exportMd(convId: string, filename?: string) {
+    try {
+      const md = await exportConversation(convId)
+      const name = (filename && filename.trim()) || `${convId}.md`
+      const finalName = name.endsWith('.md') ? name : `${name}.md`
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = finalName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e: unknown) {
+      error.value = e instanceof Error ? e.message : '导出失败'
+    }
+  }
+
   async function init() {
     await loadConversations()
     await load()
@@ -55,6 +74,6 @@ export const useAnalyticsStore = defineStore('analytics', () => {
 
   return {
     stats, conversations, selectedConvId, loading, error,
-    load, loadConversations, select, remove, init,
+    load, loadConversations, select, remove, init, exportMd,
   }
 })

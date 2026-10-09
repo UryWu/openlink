@@ -25,6 +25,8 @@ from app.schemas.types import (
     RecentItem,
 )
 from app.utils.token_count import count_tokens
+from fastapi.responses import PlainTextResponse
+import time as _time
 
 logger = logging.getLogger("openlink.conversations")
 
@@ -66,6 +68,40 @@ async def delete_conversation(conv_id: str):
     if not ok:
         raise HTTPException(status_code=404, detail=f"conversation not found: {conv_id}")
     return DeleteAck(status="ok", deleted=True)
+
+@router.get("/conversations/{conv_id}/export", response_class=PlainTextResponse)
+async def export_conversation(conv_id: str):
+    """导出单个会话为 Markdown 文本（ts 转人类可读时间）。"""
+    records = store.read_records(conv_id=conv_id)
+    if not records:
+        raise HTTPException(status_code=404, detail=f"conversation not found: {conv_id}")
+    md = _records_to_markdown(conv_id, records)
+    return PlainTextResponse(md, media_type="text/markdown; charset=utf-8")
+
+
+def _fmt_ts(ts: int) -> str:
+    """毫秒时间戳转 'YYYY-MM-DD HH:MM:SS'。"""
+    if not ts:
+        return "-"
+    return _time.strftime("%Y-%m-%d %H:%M:%S", _time.localtime(ts / 1000))
+
+
+def _records_to_markdown(conv_id: str, records: list) -> str:
+    """把会话记录渲染为 Markdown（参考 scripts/jsonl2md.py）。"""
+    parts = [f"# 会话 {conv_id}\n"]
+    for i, r in enumerate(records, 1):
+        parts.append(f"## 第 {i} 轮\n")
+        parts.append(f"- **时间**：{_fmt_ts(int(r.get('ts', 0) or 0))}（ts={int(r.get('ts', 0) or 0)}）")
+        parts.append(f"- **平台**：{r.get('platform', '')}")
+        parts.append(f"- **输入 tokens**：{int(r.get('inputTokens', 0) or 0)}")
+        parts.append(f"- **输出 tokens**：{int(r.get('outputTokens', 0) or 0)}\n")
+        parts.append("**用户**：\n")
+        parts.append("```\n" + (r.get("user", "") or "") + "\n```\n")
+        parts.append("**助手**：\n")
+        parts.append("```\n" + (r.get("assistant", "") or "") + "\n```\n")
+        parts.append("---\n")
+    return "\n".join(parts)
+
 
 @router.get("/stats", response_model=StatsResponse)
 async def get_stats(convId: str | None = None):
