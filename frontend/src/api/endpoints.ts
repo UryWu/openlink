@@ -8,6 +8,7 @@ import type {
   ToolResponse,
   SkillInfo,
   FileItem,
+  StatsResponse,
 } from '@/types'
 
 /** Singleton Axios instance that reads the token from localStorage each request. */
@@ -72,6 +73,11 @@ export async function fetchFiles(query?: string): Promise<FileItem[]> {
 
 export async function execTool(req: ToolRequest): Promise<ToolResponse> {
   const { data } = await api.post<ToolResponse>('/exec', req)
+  return data
+}
+
+export async function fetchStats(): Promise<StatsResponse> {
+  const { data } = await api.get<StatsResponse>('/stats')
   return data
 }
 

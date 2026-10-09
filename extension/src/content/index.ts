@@ -206,6 +206,12 @@ if (!(window as any).__OPENLINK_LOADED__) {
     const script = document.createElement('script');
     script.src = chrome.runtime.getURL('injected.js');
     (document.head || document.documentElement).appendChild(script);
+    // 同时启动独立对话上报 observer（工具调用仍走 injected.js，不冲突）
+    if (cfg.responseSelector) {
+      const rsel = cfg.responseSelector;
+      if (document.body) startConversationReporter(rsel);
+      else document.addEventListener('DOMContentLoaded', () => startConversationReporter(rsel));
+    }
   } else if (cfg.responseSelector) {
     const sel = cfg.responseSelector;
     if (document.body) startDOMObserver(sel);
@@ -404,6 +410,103 @@ function renderToolCard(data: any, _full: string, sourceEl: Element, key: string
   anchor.insertBefore(card, messageContent);
 }
 
+/**
+ * 独立的对话上报 observer：仅抓取 AI 回复并上报，不处理工具调用。
+ * 用于 useObserver=false 的站点（如 DeepSeek），这些站点的工具调用走 injected.js。
+ */
+function startConversationReporter(responseSelector: string) {
+  const reported = new Set<string>();
+
+  function convId(): string {
+    const m = location.pathname.match(/\/(?:chat|c|a\/chat\/s)\/([^/?#]+)/) ||
+              location.pathname.match(/\/chat\/s\/([^/?#]+)/);
+    return m ? m[1] : '__default__';
+  }
+
+  function hash(s: string): number {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) {
+      h = (h << 5) - h + s.charCodeAt(i);
+      h |= 0;
+    }
+    return h;
+  }
+
+  function findUserText(aiEl: Element): string {
+    // DeepSeek: assistant 消息块的前一个兄弟通常是用户消息块
+    let node: Element | null = aiEl;
+    for (let i = 0; i < 8 && node; i++) {
+      const prev = node.previousElementSibling;
+      if (prev && !prev.matches(responseSelector) && !prev.querySelector(responseSelector)) {
+        const t = (prev.textContent || '').trim();
+        if (t) return t;
+      }
+      node = node.parentElement;
+    }
+    return '';
+  }
+
+  async function report(aiEl: Element): Promise<void> {
+    const assistantText = (aiEl.textContent || '').trim();
+    if (!assistantText) return;
+    const cid = convId();
+    const key = cid + ':' + String(hash(assistantText));
+    if (reported.has(key)) return;
+    reported.add(key);
+    const userText = findUserText(aiEl);
+    try {
+      const { authToken, apiUrl } = await chrome.storage.local.get(['authToken', 'apiUrl']);
+      if (!apiUrl) return;
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      await bgFetch(`${apiUrl}/conversations`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          platform: location.hostname,
+          convId: cid,
+          user: userText.slice(0, 20000),
+          assistant: assistantText.slice(0, 20000),
+        }),
+      });
+      console.log('[OpenLink] 对话已上报:', cid);
+    } catch (e) {
+      console.warn('[OpenLink] 对话上报失败:', e);
+    }
+  }
+
+  // 内容停止变化 1.5s 后视为一轮回复完成
+  const timers = new WeakMap<Element, ReturnType<typeof setTimeout>>();
+  function schedule(el: Element) {
+    const t = timers.get(el);
+    if (t) clearTimeout(t);
+    timers.set(el, setTimeout(() => report(el), 1500));
+  }
+
+  function scanExisting() {
+    document.querySelectorAll(responseSelector).forEach(el => report(el));
+  }
+
+  new MutationObserver(mutations => {
+    for (const m of mutations) {
+      if (m.type === 'characterData') {
+        let el: Element | null = (m.target as Text).parentElement;
+        while (el && !el.matches(responseSelector)) el = el.parentElement;
+        if (el) schedule(el);
+      } else {
+        m.addedNodes.forEach(n => {
+          if (n.nodeType !== Node.ELEMENT_NODE) return;
+          const el = n as Element;
+          const target = el.matches(responseSelector) ? el : el.querySelector(responseSelector);
+          if (target) schedule(target);
+        });
+      }
+    }
+  }).observe(document.body, { childList: true, subtree: true, characterData: true });
+
+  setTimeout(scanExisting, 1500);
+}
+
 function startDOMObserver(_responseSelector: string) {
   const processed = new Set<string>();
   const TOOL_RE = /<tool(?:\s[^>]*)?>[\s\S]*?<\/tool>/g;
@@ -411,7 +514,59 @@ function startDOMObserver(_responseSelector: string) {
   // DOM observer path and the injected.js → TOOL_CALL → executeToolCall
   // path honor the same setting.
 
+  // 已上报的对话轮次去重（convId + assistant 文本 hash）
+  const reportedConversations = new Set<string>();
+
+  /** 从 AI 回复容器向上找配对的用户消息文本。DeepSeek 用户消息选择器待实测。 */
+  function findUserText(aiEl: Element): string {
+    let node: Element | null = aiEl;
+    for (let i = 0; i < 6 && node; i++) {
+      const prev = node.previousElementSibling;
+      if (prev && !prev.querySelector('.ds-markdown')) {
+        const t = (prev.textContent || '').trim();
+        if (t) return t;
+      }
+      node = node.parentElement;
+    }
+    return '';
+  }
+
+  /** 上报一轮对话（user + assistant）到后端。失败静默。 */
+  async function reportConversation(userText: string, assistantText: string): Promise<void> {
+    if (!userText || !assistantText) return;
+    const convId = getConversationId();
+    const key = convId + ':' + String(hashStr(assistantText));
+    if (reportedConversations.has(key)) return;
+    reportedConversations.add(key);
+    try {
+      const { authToken, apiUrl } = await chrome.storage.local.get(['authToken', 'apiUrl']);
+      if (!apiUrl) return;
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      await bgFetch(`${apiUrl}/conversations`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          platform: location.hostname,
+          convId,
+          user: userText.slice(0, 20000),
+          assistant: assistantText.slice(0, 20000),
+        }),
+      });
+    } catch (e) {
+      console.warn('[OpenLink] 对话上报失败:', e);
+    }
+  }
+
   function scanText(text: string, sourceEl?: Element) {
+    // 对话上报：若带来源元素（AI 回复容器），抓取本轮 user+assistant 上报
+    if (sourceEl) {
+      const aiText = text.trim();
+      if (aiText) {
+        const userText = findUserText(sourceEl);
+        reportConversation(userText, aiText);
+      }
+    }
     // 检测多余闭合标签：先记录再合并，便于附加提醒
     const hadDuplicateClose = /(<\/(?:tool|tool_call)>)\s*(?:\1)+/.test(text);
     // 检测 DSML 乱码标记：不再静默删除，交由 parseXmlToolCall 统一报错提示

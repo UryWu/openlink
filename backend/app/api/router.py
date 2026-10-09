@@ -10,6 +10,7 @@ from app.api.endpoints.exec import router as exec_router
 from app.api.endpoints.prompt import router as prompt_router
 from app.api.endpoints.skills import router as skills_router
 from app.api.endpoints.files import router as files_router
+from app.api.endpoints.conversations import router as conversations_router
 
 api_router = APIRouter()
 api_router.include_router(health_router)
@@ -20,3 +21,4 @@ api_router.include_router(exec_router)
 api_router.include_router(prompt_router)
 api_router.include_router(skills_router)
 api_router.include_router(files_router)
+api_router.include_router(conversations_router)

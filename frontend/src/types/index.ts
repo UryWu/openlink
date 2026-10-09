@@ -54,3 +54,38 @@ export interface FileItem {
   is_dir: boolean
   modified: string
 }
+
+
+export interface SummaryStats {
+  count: number
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+}
+
+export interface DayStat {
+  date: string
+  inputTokens: number
+  outputTokens: number
+}
+
+export interface PlatformStat {
+  platform: string
+  count: number
+  tokens: number
+}
+
+export interface RecentItem {
+  ts: number
+  platform: string
+  user: string
+  inputTokens: number
+  outputTokens: number
+}
+
+export interface StatsResponse {
+  summary: SummaryStats
+  byDay: DayStat[]
+  byPlatform: PlatformStat[]
+  recent: RecentItem[]
+}
