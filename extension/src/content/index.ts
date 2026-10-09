@@ -1479,7 +1479,7 @@ async function executeToolCall(toolCall: any) {
   // 标签语法错误（DSML 乱码 / 标签不闭合）：不回填执行，直接把错误信息发回对话
   if (toolCall && toolCall._syntaxError) {
     console.warn('[OpenLink] 工具调用语法错误，已拦截:', toolCall._syntaxError);
-    fillAndSend(toolCall._syntaxError, false);
+    fillAndSend(toolCall._syntaxError, true);
     return;
   }
 
@@ -1527,7 +1527,7 @@ async function executeToolCall(toolCall: any) {
       fillAndSend(
         `[OpenLink 错误] 请求未能到达后端（网络错误/丢包），工具调用未执行。` +
         `请求 #${reqId}。请检查本地服务是否运行、代理是否正常后重试。`,
-        false
+        true
       );
       return;
     }
