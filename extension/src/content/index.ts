@@ -268,7 +268,15 @@ const DEBUG = false;
 const debugLog = (...args: any[]) => { if (DEBUG) console.log('[OpenLink]', ...args); };
 
 function getConversationId(): string {
-  const m = location.pathname.match(/\/chat\/([^/?#]+)/) || location.search.match(/[?&]id=([^&]+)/);
+  // 支持多种平台会话 URL：
+  //   DeepSeek: /a/chat/s/<id> 或 /chat/<id>
+  //   Qwen:     /c/<id>
+  //   ChatGPT:  /c/<id>
+  //   通用:     ?id=<id>
+  const m = location.pathname.match(/\/chat\/s\/([^/?#]+)/) ||
+            location.pathname.match(/\/chat\/([^/?#]+)/) ||
+            location.pathname.match(/\/c\/([^/?#]+)/) ||
+            location.search.match(/[?&]id=([^&]+)/);
   return m ? m[1] : '__default__';
 }
 
@@ -418,8 +426,10 @@ function startConversationReporter(responseSelector: string) {
   const reported = new Set<string>();
 
   function convId(): string {
-    const m = location.pathname.match(/\/(?:chat|c|a\/chat\/s)\/([^/?#]+)/) ||
-              location.pathname.match(/\/chat\/s\/([^/?#]+)/);
+    const m = location.pathname.match(/\/chat\/s\/([^/?#]+)/) ||
+              location.pathname.match(/\/chat\/([^/?#]+)/) ||
+              location.pathname.match(/\/c\/([^/?#]+)/) ||
+              location.search.match(/[?&]id=([^&]+)/);
     return m ? m[1] : '__default__';
   }
 

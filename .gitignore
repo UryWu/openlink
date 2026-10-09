@@ -42,6 +42,12 @@ dist/
 # Runtime logs
 logs/
 
+# Conversation data samples
+scripts/input.jsonl
+
+# HuggingFace download cache
+backend/app/utils/deepseek_tokenizer/.cache/
+
 # IDE
 .vscode/
 .idea/

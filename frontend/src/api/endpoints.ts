@@ -9,6 +9,7 @@ import type {
   SkillInfo,
   FileItem,
   StatsResponse,
+  ConversationMeta,
 } from '@/types'
 
 /** Singleton Axios instance that reads the token from localStorage each request. */
@@ -76,9 +77,21 @@ export async function execTool(req: ToolRequest): Promise<ToolResponse> {
   return data
 }
 
-export async function fetchStats(): Promise<StatsResponse> {
-  const { data } = await api.get<StatsResponse>('/stats')
+export async function fetchStats(convId?: string): Promise<StatsResponse> {
+  const { data } = await api.get<StatsResponse>('/stats', {
+    params: convId ? { convId } : {},
+  })
   return data
+}
+
+
+export async function fetchConversations(): Promise<ConversationMeta[]> {
+  const { data } = await api.get<{ items: ConversationMeta[] }>('/conversations')
+  return data.items
+}
+
+export async function deleteConversation(convId: string): Promise<void> {
+  await api.delete(`/conversations/${encodeURIComponent(convId)}`)
 }
 
 export default api

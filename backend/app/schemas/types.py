@@ -123,3 +123,25 @@ class StatsResponse(BaseModel):
     byDay: list[DayStat] = []
     byPlatform: list[PlatformStat] = []
     recent: list[RecentItem] = []
+
+
+
+class ConversationMeta(BaseModel):
+    """会话列表条目。"""
+    convId: str
+    platform: str = ""
+    count: int = 0
+    firstTs: int = 0
+    lastTs: int = 0
+    inputTokens: int = 0
+    outputTokens: int = 0
+    totalTokens: int = 0
+
+class ConversationListResponse(BaseModel):
+    """GET /conversations 响应。"""
+    items: list[ConversationMeta] = []
+
+class DeleteAck(BaseModel):
+    """DELETE /conversations/{convId} 响应。"""
+    status: str = "ok"
+    deleted: bool = False

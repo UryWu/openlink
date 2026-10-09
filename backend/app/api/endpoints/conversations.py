@@ -9,9 +9,15 @@ from fastapi import APIRouter
 
 from app.api.deps import auth_required
 from app.core.conversations import store
+from fastapi import HTTPException
+
+
 from app.schemas.types import (
     ConversationIn,
     ConversationAck,
+    ConversationListResponse,
+    ConversationMeta,
+    DeleteAck,
     StatsResponse,
     SummaryStats,
     DayStat,
@@ -47,10 +53,24 @@ async def add_conversation(req: ConversationIn):
     return ConversationAck(status="ok", inputTokens=it, outputTokens=ot)
 
 
+@router.get("/conversations", response_model=ConversationListResponse)
+async def list_conversations():
+    """列出所有会话（按最后活跃时间倒序）。"""
+    return ConversationListResponse(items=[ConversationMeta(**m) for m in store.list_conversations()])
+
+
+
+@router.delete("/conversations/{conv_id}", response_model=DeleteAck)
+async def delete_conversation(conv_id: str):
+    ok = store.delete_conversation(conv_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail=f"conversation not found: {conv_id}")
+    return DeleteAck(status="ok", deleted=True)
+
 @router.get("/stats", response_model=StatsResponse)
-async def get_stats():
-    """聚合全部对话记录，返回统计。"""
-    records = store.read_records()
+async def get_stats(convId: str | None = None):
+    """聚合对话记录，返回统计；可选按 convId 过滤。"""
+    records = store.read_records(conv_id=convId)
 
     summary = SummaryStats()
     by_day: dict[str, DayStat] = {}

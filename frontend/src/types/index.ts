@@ -89,3 +89,15 @@ export interface StatsResponse {
   byPlatform: PlatformStat[]
   recent: RecentItem[]
 }
+
+
+export interface ConversationMeta {
+  convId: string
+  platform: string
+  count: number
+  firstTs: number
+  lastTs: number
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+}
