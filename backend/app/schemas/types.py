@@ -100,6 +100,7 @@ class DayStat(BaseModel):
     date: str
     inputTokens: int = 0
     outputTokens: int = 0
+    cost: float = 0.0
 
 
 class PlatformStat(BaseModel):

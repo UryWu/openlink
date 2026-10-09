@@ -67,25 +67,26 @@
           <circle
             v-for="(p, i) in allDots" :key="'all' + i"
             :cx="p.x" :cy="p.yIn" r="3.5" class="dot in"
-            @mouseenter="hover = { x: p.x, y: p.yIn, date: p.date, input: p.input, output: p.output, total: p.total }"
+            @mouseenter="hover = { x: p.x, y: p.yIn, date: p.date, input: p.input, output: p.output, total: p.total, cost: p.cost }"
             @mouseleave="hover = null" />
           <circle
             v-for="(p, i) in allDots" :key="'allo' + i"
             :cx="p.x" :cy="p.yOut" r="3.5" class="dot out"
-            @mouseenter="hover = { x: p.x, y: p.yOut, date: p.date, input: p.input, output: p.output, total: p.total }"
+            @mouseenter="hover = { x: p.x, y: p.yOut, date: p.date, input: p.input, output: p.output, total: p.total, cost: p.cost }"
             @mouseleave="hover = null" />
           <circle
             v-for="(p, i) in allDots" :key="'alt' + i"
             :cx="p.x" :cy="p.yTotal" r="3.5" class="dot total"
-            @mouseenter="hover = { x: p.x, y: p.yTotal, date: p.date, input: p.input, output: p.output, total: p.total }"
+            @mouseenter="hover = { x: p.x, y: p.yTotal, date: p.date, input: p.input, output: p.output, total: p.total, cost: p.cost }"
             @mouseleave="hover = null" />
 
           <g v-if="hover" :transform="`translate(${tooltipX}, ${tooltipY})`" class="tooltip">
-            <rect x="0" :y="tipAbove ? -74 : 14" :width="tooltipW" height="72" rx="6" class="tip-bg" />
+            <rect x="0" :y="tipAbove ? -92 : 14" :width="tooltipW" height="90" rx="6" class="tip-bg" />
             <text x="10" :y="tipAbove ? -56 : 32" class="tip-title">{{ hover.date }}</text>
-            <text x="10" :y="tipAbove ? -40 : 48" class="tip-line">输入: {{ fmt(hover.input) }}</text>
-            <text x="10" :y="tipAbove ? -24 : 64" class="tip-line">输出: {{ fmt(hover.output) }}</text>
+            <text x="10" :y="tipAbove ? -40 : 48" class="tip-line tip-in">输入: {{ fmt(hover.input) }}</text>
+            <text x="10" :y="tipAbove ? -24 : 64" class="tip-line tip-out">输出: {{ fmt(hover.output) }}</text>
             <text x="10" :y="tipAbove ? -8 : 80" class="tip-line tip-total">总计: {{ fmt(hover.total) }}</text>
+            <text x="10" :y="tipAbove ? 8 : 96" class="tip-line tip-cost">费用: {{ cost(hover.cost) }}</text>
           </g>
 
           <text v-for="(p, i) in xLabels" :key="'x' + i" :x="p.x" :y="plotH + 16" class="axis-text" text-anchor="middle">{{ p.label }}</text>
@@ -265,6 +266,7 @@ const allDots = computed(() => {
     input: d.inputTokens,
     output: d.outputTokens,
     total: d.inputTokens + d.outputTokens,
+    cost: d.cost ?? 0,
     date: d.date,
   }))
 })
@@ -273,7 +275,7 @@ const inPoints = computed(() => points('inputTokens'))
 const outPoints = computed(() => points('outputTokens'))
 const totalPoints = computed(() => points('total'))
 
-const hover = ref<{ x: number; y: number; date: string; input: number; output: number; total: number } | null>(null)
+const hover = ref<{ x: number; y: number; date: string; input: number; output: number; total: number; cost: number } | null>(null)
 const tooltipW = 140
 const tooltipX = computed(() => {
   if (!hover.value) return 0
@@ -388,7 +390,10 @@ h2 { margin: 28px 0 12px; font-size: 16px; color: var(--color-muted); }
 .tip-bg { fill: var(--color-surface); stroke: var(--color-border); stroke-width: 1; opacity: 0.98; }
 .tip-title { fill: var(--color-text); font-size: 11px; font-weight: 600; }
 .tip-line { fill: var(--color-muted); font-size: 11px; }
+.tip-in { fill: var(--color-accent); }
+.tip-out { fill: var(--color-success); }
 .tip-total { fill: var(--color-warning); }
+.tip-cost { fill: #fb923c; }
 .legend { display: flex; gap: 16px; font-size: 12px; color: var(--color-muted); margin-top: 8px; }
 .legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
 .legend .dot.in { background: var(--color-accent); }

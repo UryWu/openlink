@@ -68,6 +68,7 @@ export interface DayStat {
   date: string
   inputTokens: number
   outputTokens: number
+  cost: number
 }
 
 export interface PlatformStat {

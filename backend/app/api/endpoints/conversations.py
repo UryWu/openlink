@@ -166,22 +166,27 @@ async def get_stats(convId: str | None = None, clusterIntervalMinutes: int = 30)
         d = by_day.setdefault(date, DayStat(date=date))
         d.inputTokens += it
         d.outputTokens += ot
+        d.cost += calc_cost(r.get("platform", "unknown"), it, ot, pricing)
 
         h = by_hour.setdefault(hour, DayStat(date=hour))
         h.inputTokens += it
         h.outputTokens += ot
+        h.cost += calc_cost(r.get("platform", "unknown"), it, ot, pricing)
 
         w = by_week.setdefault(week, DayStat(date=week))
         w.inputTokens += it
         w.outputTokens += ot
+        w.cost += calc_cost(r.get("platform", "unknown"), it, ot, pricing)
 
         mo = by_month.setdefault(month, DayStat(date=month))
         mo.inputTokens += it
         mo.outputTokens += ot
+        mo.cost += calc_cost(r.get("platform", "unknown"), it, ot, pricing)
 
         y = by_year.setdefault(year, DayStat(date=year))
         y.inputTokens += it
         y.outputTokens += ot
+        y.cost += calc_cost(r.get("platform", "unknown"), it, ot, pricing)
 
         plat = r.get("platform", "unknown")
         p = by_platform.setdefault(plat, PlatformStat(platform=plat))
