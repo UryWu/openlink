@@ -237,3 +237,35 @@ Agent 发出的工具调用（exec_cmd / edit / write_file 等）**偶发未被�
 - 反例：`cmd /c "cd /d <路径> && <命令>"`（`&&` 带空格）、`cmd /c "git ..."`（cmd 包裹 git）丢包率更高。
 
 **规律**：命令越简单越稳；`cmd /c` + 引号 + 空格组合是丢包高发区。优先用裸命令或 `&&` 无空格连写。
+
+## 丢包排查结论（2026-10-09 复盘）
+
+### 现象
+
+网页 AI（如 DeepSeek）发出的工具调用**偶发"没反应"**：命令未到达后端（后端无 `[cmd #N] start`），或到达但卡住无响应。
+
+### 根因（多层）
+
+1. **发送侧链路**：网页 AI 输出 → 扩展解析 → `bgFetch` → 后端，任一环节抖动即丢。
+2. **调试 Chrome 未配 apiUrl**：新装扩展 `chrome.storage` 为空，`if (!apiUrl) return` 直接静默返回。
+3. **AI 输出格式不合规**：模型可能输出 DSML 变体（`<invoke>`）而非 `<tool name>`，扩展解析不了。
+4. **网络/代理抖动**：调试 Chrome 用 `--proxy-server` 时对 DeepSeek 域名不稳定（`ERR_CONNECTION_CLOSED`）。
+
+### 已实施的可靠性改进（extension）
+
+- `executeToolCall` / `executeToolCallRaw`：**12s 超时 + 最多 3 次重试**。
+- 重试中/最终失败 → **回填对话**（`fillAndSend`），用户可见；成功静默。
+- 工具卡片按钮**实时显示状态**：发送中 / 已发送(N/3) / 已执行 / 未执行。
+
+### 排查方法
+
+- **判定丢包**：命令无输出时，先发探针 `echo probe`；再看后端有无 `[cmd #N] start`——有=执行了（输出丢失），无=未执行（丢包）。
+- **调试 Chrome 验证扩展**：给调试 Chrome 的 AI 发 `GET /prompt` 的 init_prompt（注入 openlink 身份），再发指令让它输出工具调用；或用扩展的"工具命令"面板直连后端测试（绕过网页 AI 路径）。
+- **配置检查**：`chrome://extensions` 打开扩展的 🔗 设置面板，确认 API 地址 + Token 已填。
+
+### 低丢包命令写法（复述）
+
+- `git -C <路径> <命令>`（不带 `cmd /c`）稳定。
+- `cmd /c "cd /d <路径>&&<命令>"`（`&&` 无空格）可用。
+- 避免 `cmd /c` + 引号 + 空格 + 中文路径的复杂组合。
+- 每次调用工具只写一个闭合标签，不含 DSML 乱码。
